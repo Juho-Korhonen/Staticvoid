@@ -1,0 +1,7 @@
+data/
+*.parquet
+*.zip
+.env
+__pycache__/
+.venv/
+node_modules/
