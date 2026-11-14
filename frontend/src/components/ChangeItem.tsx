@@ -1,5 +1,6 @@
 import { categoryLabels, rhetoricalCategoryLabels } from '../labels';
 import type { Change, Sources } from '../types';
+import { changedText } from '../utils/changedText';
 import { isFlagged } from '../utils/review';
 import ExternalLink from './ExternalLink';
 
@@ -25,6 +26,7 @@ function direction(change: Change): string {
 
 export default function ChangeItem({ change, sources }: { change: Change; sources: Sources }) {
   const { revision } = change;
+  const { before, after } = changedText(change.oldText, change.newText);
   return (
     <article className={`change ${direction(change)}`}>
       <strong>
@@ -35,8 +37,8 @@ export default function ChangeItem({ change, sources }: { change: Change; source
       <p className="change-explanation">{change.explanation}</p>
       {change.possibleAgenda && <p className="reading-note">Possible framing goal: {change.possibleAgenda}</p>}
       <div className="change-copy">
-        <Passage side="after" text={change.newText} fallback={NOTHING_AFTER} href={sources.after} />
-        <Passage side="before" text={change.oldText} fallback={NOTHING_BEFORE} href={sources.before} />
+        <Passage side="after" text={after} fallback={NOTHING_AFTER} href={sources.after} />
+        <Passage side="before" text={before} fallback={NOTHING_BEFORE} href={sources.before} />
       </div>
       {change.neutralWording && <p><strong>Suggested neutral wording:</strong> {change.neutralWording}</p>}
       {change.segmentCount > 1 && (
