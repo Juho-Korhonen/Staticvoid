@@ -14,8 +14,8 @@ export default function ChangeItem({ change }: { change: Change }) {
   return (
     <article className={`change ${direction}`}>
       <div className="change-copy">
-      {change.oldText && <p><span className="change-label">Before</span><span className="removed">{change.oldText}</span></p>}
       {change.newText && <p><span className="change-label">After</span><span className="added">{change.newText}</span></p>}
+      {change.oldText && <p><span className="change-label">Before</span><span className="removed">{change.oldText}</span></p>}
       </div>
       <small>
         {describe(change)}

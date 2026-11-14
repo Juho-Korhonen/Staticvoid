@@ -44,6 +44,8 @@ h1, h2 { font-family: "Linux Libertine", Georgia, serif; font-weight: 400; }
 h1 { font-size: 1.9em; line-height: 1.25; margin: 0 0 4px; padding-bottom: 5px; border-bottom: 1px solid var(--line); }
 h2 { font-size: 1.45em; margin: 22px 0 10px; padding-bottom: 3px; border-bottom: 1px solid var(--line); }
 .subtitle { color: var(--muted); font-size: 12px; margin: 0 0 17px; }
+.article-title-field { display: flex; flex-direction: column; gap: 4px; margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+.article-title-field input { max-width: 420px; padding: 6px 8px; border: 1px solid #c1bbca; border-radius: 2px; background: var(--bg); color: var(--text); font-size: 14px; }
 .message { color: var(--muted); padding: 12px 14px; border-radius: 4px; }
 .validation, .error { background: #f8eee4; color: #694c3d; }
 .loading { background: var(--blue-soft); color: #45416d; }
@@ -71,12 +73,16 @@ h2 { font-size: 1.45em; margin: 22px 0 10px; padding-bottom: 3px; border-bottom:
 .compare-button { padding: 7px 13px; border: 1px solid #776991; border-radius: 3px; color: #fff; background: #776991; font-weight: 700; cursor: pointer; transition: background-color .16s ease, transform .16s ease; }
 .compare-button:hover:not(:disabled) { background: #65587f; transform: translateY(-1px); }
 .compare-button:disabled { color: #74717b; background: #e3e0e9; border-color: #d2cedd; cursor: not-allowed; }
+.article-search-row { display: flex; align-items: center; gap: 8px; }
+.search-button { margin: 0; }
+.presets button:disabled { opacity: .55; cursor: not-allowed; }
 
 .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0 18px; }
 .card { padding: 9px 11px; background: #f8f6fa; border: 1px solid var(--line); border-radius: 0; }
 .card strong, .card span { display: block; }
 .card strong { font-size: 13px; }
 .card span { margin-top: 3px; font-size: 13px; color: var(--muted); }
+.card a { display: inline-block; margin-top: 3px; color: var(--blue); font-size: 13px; }
 
 .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 10px 12px; background: #f8f6fa; border: 1px solid var(--line); border-radius: 0; }
 .summary > div { color: var(--muted); font-size: 12px; }
