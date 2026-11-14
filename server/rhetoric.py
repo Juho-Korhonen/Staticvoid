@@ -50,6 +50,14 @@ class BatchError(AnalysisError):
 
 class ChangeAnalysis(BaseModel):
     changeIndex: int = Field(ge=0, description="The exact supplied changeIndex, not its position in this batch.")
+    category: Literal[
+        "trolling", "vandalism", "rhetorical_change", "factual_update",
+        "sourcing_change", "formatting", "repair", "unclear",
+    ] = Field(description="The primary type of this edit, based on the wording rather than assumed editor intent.")
+    rhetoricalCategory: Literal[
+        "loaded_language", "blame_or_credit", "downplaying_or_exaggeration",
+        "selective_emphasis", "certainty_shift", "attribution_shift",
+    ] | None = Field(description="The main rhetorical mechanism; required for rhetorical_change, null for all other categories.")
     toneDelta: int = Field(ge=-2, le=2, description="-2 much more negative to +2 much more positive; 0 unchanged. Not a neutrality score.")
     hedgeAdded: bool
     neutrality: Literal["more_neutral", "less_neutral", "unchanged", "unclear"]
@@ -87,6 +95,20 @@ historical violence. Negative subject matter is not bias; more citations or deta
 alone do not establish objectivity. Do not claim external fact checking, fabricate
 sources, or claim to know an editor's agenda. A possible agenda must be tentative.
 Return exactly one assessment for EVERY supplied changeIndex, including benign edits.
+Give each edit one primary category: trolling (insults, mockery or provocative nonsense),
+vandalism (spam, defacement or destructive blanking), rhetorical_change (a change in
+framing), factual_update (changed information, not a claim that it is verified),
+sourcing_change (citations), formatting (presentation or spelling without changed
+meaning), repair (undoing vandalism or correcting an evident error), or unclear.
+For rhetorical_change, choose one rhetoricalCategory: loaded_language (emotional
+or evaluative wording), blame_or_credit (agency or responsibility),
+downplaying_or_exaggeration (minimizing or amplifying), selective_emphasis (one-sided
+selection or omission), certainty_shift (hedging or confidence), or attribution_shift
+(whose claim or opinion is presented). Use null for all other categories.
+Classify what this edit does, not the old text it removes. Removing bias can also
+be a rhetorical_change; explain the improvement. Adding historical descriptions
+of violence is not itself trolling or loaded language. Trolling and vandalism
+must have possible_vandalism in flags and cite evidence; treat intent as uncertain.
 Select evidence IDs from that change's beforePassages/afterPassages. A flagged edit
 must cite at least one passage. The server supplies the exact quotations and links.
 Large blocks are split into overlapping segments; all segments are reviewed.
@@ -210,6 +232,10 @@ def _validate(response_text: str | None, selected: list[dict], passages: list[di
     output = []
     for source, passage in zip(selected, passages):
         item = by_index[source["changeIndex"]]
+        if (item.category == "rhetorical_change") != (item.rhetoricalCategory is not None):
+            raise BatchError("Gemini returned an inconsistent change category. Please try again.")
+        if item.category in ("trolling", "vandalism") and "possible_vandalism" not in item.flags:
+            raise BatchError("Gemini classified possible vandalism without a review flag. Please try again.")
         before, after = item.evidenceBeforeId, item.evidenceAfterId
         if (before is not None and before not in passage["beforePassages"]) or \
                 (after is not None and after not in passage["afterPassages"]):

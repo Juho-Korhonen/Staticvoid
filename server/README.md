@@ -119,7 +119,13 @@ can span many editors; the reading does not establish an individual's intent.
 Each change contains the source excerpts, `explanation`, `framingChanges`,
 `neutralWording`, `neutrality`, `toneDelta` (-2 to +2), and `hedgeAdded`.
 Each assessment also includes `flags`, `severity`, a tentative `possibleAgenda`,
-and the exact revision and source links. Flags cover possible vandalism, loaded
+and the exact revision and source links. The card title uses `category`: trolling,
+vandalism, rhetorical change, factual edit, sourcing change, formatting, repair,
+or unclear. Rhetorical changes also require a `rhetoricalCategory`: loaded language,
+blame or credit, downplaying or exaggeration, selective emphasis, changed certainty,
+or changed attribution. Other categories use null. Categories describe the edit,
+including improvements; severity is used for ordering rather than displayed as a title.
+Flags cover possible vandalism, loaded
 language, framing shifts, unsupported claims, source/content removal, undue
 emphasis, attribution changes and changed certainty. Flags require quoted evidence;
 ordinary factual or formatting changes are not automatically suspicious.
