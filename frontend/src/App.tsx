@@ -12,14 +12,14 @@ export default function App() {
   const [from, setFrom] = useState('2015-01-01');
   const [to, setTo] = useState('2015-03-01');
   const [title, setTitle] = useState(DEFAULT_ARTICLE_TITLE);
-  const [search, setSearch] = useState({ title: DEFAULT_ARTICLE_TITLE, from: '2015-01-01', to: '2015-03-01' });
-  const { data, loading, error } = useComparison(search.title, search.from, search.to);
+  const [search, setSearch] = useState({ title: DEFAULT_ARTICLE_TITLE, from: '2015-01-01', to: '2015-03-01', requestId: 0 });
+  const { data, loading, error, progress, cancel } = useComparison(search.title, search.from, search.to, search.requestId);
   const invalidSearch = !title.trim() || !from || !to || from >= to;
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (invalidSearch) return;
-    setSearch({ title: title.trim(), from, to });
+    setSearch((prev) => ({ title: title.trim(), from, to, requestId: prev.requestId + 1 }));
   }
 
   return (
@@ -45,7 +45,13 @@ export default function App() {
 
         {from && to && from >= to && <p className="message validation" role="status">The first date needs to be earlier than the second.</p>}
         {error && <p className="message error" role="alert">Could not load the comparison: {error}</p>}
-        {loading && <p className="message loading" role="status">Gemini is reading the changes…</p>}
+        {error && progress?.totalChanges !== undefined && <p className="reading-note">Incomplete review: {progress.reviewedChanges ?? 0} of {progress.totalChanges} passages inspected.</p>}
+        {loading && <div className="message loading" role="status">
+          <p>{progress?.stage === 'analyzing'
+            ? `Inspecting every saved edit: ${progress.reviewedRevisions ?? 0}/${progress.totalRevisions ?? 0} revisions, ${progress.reviewedChanges ?? 0}/${progress.totalChanges ?? 0} passages. Batch ${progress.completedBatches ?? 0}/${progress.totalBatches ?? 0}.`
+            : 'Loading all saved revisions and comparing each edit…'}</p>
+          <button type="button" className="compare-button" onClick={cancel}>Cancel review</button>
+        </div>}
 
         {data && !loading && (
           <>
@@ -53,7 +59,7 @@ export default function App() {
             <RevisionCards comparison={data} />
             <Summary comparison={data} />
             <details className="remaining-changes">
-              <summary>Why? View the changes and quoted evidence</summary>
+              <summary>View flagged edits and the full review</summary>
               <h2 id="changes-heading">Evidence from the revisions</h2>
               <ChangeList comparison={data} />
             </details>

@@ -107,14 +107,21 @@ Add `analyze=true` to the existing endpoint:
 curl 'http://127.0.0.1:8000/changes?title=Talvisota&start=2015-01-01&end=2016-01-01&max_revisions=0&analyze=true'
 ```
 
-The pipeline stays Parquet → DuckDB → revision selection → text diff, followed
-by one request through Google's official `google-genai` SDK. The response adds
+The pipeline stays Parquet → DuckDB → revision selection → text diff. Every saved
+revision in `[start, end)` is compared with its predecessor, then reviewed in
+batches through Google's official `google-genai` SDK. Reverted edits are included
+even when the start and end texts are identical. The response adds
 `rhetoric_analysis` with `summary`, `model`, `partial`, `totalChanges`, and `changes`.
 The reading includes `overallNeutrality`, a short `summary`, and `possibleAgenda`
 (a tentative interpretation of framing, or null when unsupported). Comparisons
 can span many editors; the reading does not establish an individual's intent.
 Each change contains the source excerpts, `explanation`, `framingChanges`,
 `neutralWording`, `neutrality`, `toneDelta` (-2 to +2), and `hedgeAdded`.
+Each assessment also includes `flags`, `severity`, a tentative `possibleAgenda`,
+and the exact revision and source links. Flags cover possible vandalism, loaded
+language, framing shifts, unsupported claims, source/content removal, undue
+emphasis, attribution changes and changed certainty. Flags require quoted evidence;
+ordinary factual or formatting changes are not automatically suspicious.
 `evidenceBefore` and `evidenceAfter` are exact source passages selected by Gemini
 using schema-constrained IDs and supplied by the server. `sources` links to the exact earlier/later Wikipedia
 revisions and their diff; these URLs are built from dataset IDs, never generated
@@ -122,14 +129,29 @@ by Gemini. These sources support wording comparisons, not historical fact checks
 Positive tone does not imply neutrality. Explanations are English; suggested
 wording preserves the source language. JSON output is validated with Pydantic.
 
-For hackathon latency and cost, analysis covers the first 12 diff blocks, at most
-2,000 characters per before/after excerpt. `partial` and `textTruncated` indicate
-these limits. The raw diff remains available; `blocks` contains paired before/after
-text. Missing endpoint revisions return 400; identical revisions need no API call.
+There is no overall revision or text cutoff. Requests contain up to 12 passages
+and 24,000 source characters. Long blocks are split into 6,000-character segments
+with 200 characters of overlapping context; every segment is reviewed. The model
+must return an assessment for every supplied index before coverage advances.
+Rejected or invalid batches are retried in smaller groups, retaining every passage;
+the final result is still withheld if any passage cannot be validated.
+`coverage` reports inspected revisions, passages, original blocks and batches;
+`flaggedChanges` counts flagged passages. Complete results always have `partial: false`.
+`max_revisions` limits only the raw revision list returned to the caller, never
+the analysis. `truncated` describes that raw list, not review coverage. Revisions
+without text changes are checked locally and need no Gemini request. Page creation
+is included even without a baseline. Coverage applies to revisions in this dataset;
+automated detection cannot guarantee that every subtle manipulation is found.
 Omitting `analyze=true` makes no Gemini request. The default model is
 `gemini-3.5-flash-lite`; override it with `GEMINI_MODEL` if needed.
 Quota failures return 429, configuration/connectivity failures 503, invalid model
 responses 502, and timeouts 504, without exposing SDK error bodies or credentials.
+
+Add `stream=true` alongside `analyze=true` for newline-delimited JSON events:
+`progress` (loading or coverage counts), then `complete` with the original response
+under `result`. Once streaming starts, failures use an `error` event with `status`
+and `detail`; they never return a successful partial review. The frontend displays
+progress and supports cancellation. Long periods require more requests and quota.
 
 Run the opt-in live smoke test (one real API request, uses your project's quota):
 
@@ -141,9 +163,9 @@ It prints `PASS` and validated analysis of a short synthetic wording change, or
 exits nonzero with a safe error. No key is printed. SDK reference:
 [Google GenAI Python SDK](https://googleapis.github.io/python-genai/).
 
-The React frontend calls `/changes?analyze=true` for the submitted Finnish Wikipedia
-article (default: `Suomen sisällissota`). It shows a short reading and possible framing goal. Expand “Why?”
-for the leading findings with quoted evidence and details of the remaining changes.
+The React frontend calls `/changes?analyze=true&stream=true` for the submitted Finnish
+Wikipedia article (default: `Suomen sisällissota`). It shows coverage, a short reading,
+all flagged passages with per-edit citations, and expandable benign assessments.
 
 ## Response
 

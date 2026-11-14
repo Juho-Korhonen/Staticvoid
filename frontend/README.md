@@ -13,9 +13,12 @@ Then in another terminal:
     npm run dev     # frontend on :5173 (proxies /api to :8000)
 
 See [server setup](../server/README.md) for dependencies and `GEMINI_API_KEY`.
-Submitting the article title and dates with Search requests a short Gemini reading of the actual Wikipedia diff,
-with a neutrality verdict, possible framing goal, and exact revision sources.
-Analysis covers a bounded set of excerpts; partial readings are labeled.
+Submitting the article title and dates with Search reviews every saved edit in the
+period, including reverted edits. Progress shows revisions and passages inspected.
+Long changes are split into batches rather than truncated. Results include flags,
+a neutrality verdict, possible framing goals and exact per-edit revision sources.
+The end date is exclusive (UTC). Longer periods use more time and Gemini quota;
+Cancel review stops the stream, and incomplete reviews are never labeled complete.
 
 ## Structure
 - `src/services/`   talks to the backend (the only place that uses fetch)

@@ -1,4 +1,4 @@
-import type { Analysis, ArticleChanges, Comparison, PageSearchResult } from '../types';
+import type { Analysis, AnalysisProgress, ArticleChanges, Comparison, PageSearchResult } from '../types';
 
 const API_URL = '/api';
 
@@ -38,15 +38,55 @@ export function getArticleChanges(
   return fetchJson(`/changes?${params}`, signal);
 }
 
-/** Analyze the net diff with Gemini, retaining revision metadata for source links. */
+type AnalyzedArticle = ArticleChanges & { rhetoric_analysis: Analysis };
+type AnalysisEvent =
+  | ({ type: 'progress' } & AnalysisProgress)
+  | { type: 'complete'; result: AnalyzedArticle }
+  | { type: 'error'; detail: string };
+
+/** Review every saved edit, reporting progress until a complete result arrives. */
 export async function compareArticle(
   title: string,
   from: string,
   to: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onProgress?: (progress: AnalysisProgress) => void
 ): Promise<Comparison> {
-  const params = new URLSearchParams({ title, start: from, end: to, max_revisions: '0', analyze: 'true' });
-  const result = await fetchJson<ArticleChanges & { rhetoric_analysis: Analysis }>(`/changes?${params}`, signal);
+  const params = new URLSearchParams({ title, start: from, end: to, max_revisions: '0', analyze: 'true', stream: 'true' });
+  const response = await fetch(`${API_URL}/changes?${params}`, { signal });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(typeof body?.detail === 'string' ? body.detail : `API returned ${response.status}`);
+  }
+  if (!response.body) throw new Error('The analysis stream is unavailable. No complete review was received.');
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let result: AnalyzedArticle | undefined;
+  const consume = (line: string) => {
+    if (!line.trim()) return;
+    const event = JSON.parse(line) as AnalysisEvent;
+    if (event.type === 'error') throw new Error(event.detail);
+    if (event.type === 'progress') onProgress?.(event);
+    if (event.type === 'complete') result = event.result;
+  };
+  try {
+    while (!result) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+      for (const line of lines) consume(line);
+      if (done) {
+        consume(buffer);
+        break;
+      }
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+  if (!result) throw new Error('Analysis interrupted before completion. Not all changes were inspected.');
 
   return {
     article: result.title,

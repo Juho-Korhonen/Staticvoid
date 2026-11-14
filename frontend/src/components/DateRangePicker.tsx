@@ -17,7 +17,7 @@ export default function DateRangePicker({ from, to, onFromChange, onToChange }: 
     <section className="date-picker" aria-labelledby="date-picker-heading">
       <div className="date-picker-intro">
         <h2 id="date-picker-heading">Choose two moments in time</h2>
-        <p>Compare saved versions of this article and see what changed.</p>
+        <p>Inspect every saved edit in this period. The end date is exclusive (UTC).</p>
       </div>
       <div className="date-fields">
         <label htmlFor="from-date">From date<input id="from-date" type="date" value={from} onChange={(event) => onFromChange(event.target.value)} /></label>

@@ -18,10 +18,29 @@ export const neutralityLabels: Record<Neutrality | 'mixed', string> = {
 };
 
 export interface Sources {
-  before: string;
-  after: string;
-  diff: string;
+  before: string | null;
+  after: string | null;
+  diff: string | null;
 }
+
+export const flagLabels = {
+  possible_vandalism: 'Possible vandalism', loaded_language: 'Loaded language',
+  framing_shift: 'Framing shift', unsupported_claim: 'Unsupported claim',
+  source_removal: 'Source removal', content_removal: 'Selective deletion',
+  undue_weight: 'Undue emphasis', attribution_change: 'Attribution change', certainty_shift: 'Changed certainty',
+};
+
+export interface AnalysisCoverage {
+  reviewedChanges: number;
+  totalChanges: number;
+  totalBlocks: number;
+  reviewedRevisions: number;
+  totalRevisions: number;
+  completedBatches: number;
+  totalBatches: number;
+}
+
+export type AnalysisProgress = { stage: 'loading' | 'analyzing' } & Partial<AnalysisCoverage>;
 
 export interface ArticlePage {
   n_versions: number;
@@ -105,6 +124,13 @@ export interface Change {
   framingChanges: string[];
   neutralWording: string | null;
   textTruncated: boolean;
+  flags: (keyof typeof flagLabels)[];
+  severity: 'none' | 'low' | 'medium' | 'high';
+  possibleAgenda: string | null;
+  segmentIndex: number;
+  segmentCount: number;
+  revision?: { id: number; beforeId: number | null; timestamp: string; isRevert: boolean };
+  sources?: Sources;
 }
 
 export interface Analysis {
@@ -114,6 +140,8 @@ export interface Analysis {
   model: string | null;
   partial: boolean;
   totalChanges: number;
+  flaggedChanges: number;
+  coverage: AnalysisCoverage;
   changes: Change[];
   sources: Sources;
 }

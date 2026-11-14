@@ -3,24 +3,25 @@ import ChangeItem from './ChangeItem';
 
 export default function ChangeList({ comparison }: { comparison: Comparison }) {
 
-  if (!comparison.from || !comparison.to) {
-    return <p className="message">Choose dates with saved revisions at both endpoints.</p>;
-  }
   if (comparison.changes.length === 0) {
-    return <p className="message">The article did not change between these dates.</p>;
+    return <p className="message">No text changes in the saved revisions for this period.</p>;
   }
 
-  const priority = { less_neutral: 0, more_neutral: 1, unclear: 2, unchanged: 3 };
-  const ordered = [...comparison.changes].sort((a, b) => priority[a.neutrality] - priority[b.neutrality]);
+  const priority = { high: 0, medium: 1, low: 2, none: 3 };
+  const ordered = [...comparison.changes].sort((a, b) => priority[a.severity] - priority[b.severity]);
+  const isFlagged = (change: typeof ordered[number]) => change.flags.length > 0 || change.neutrality === 'less_neutral';
+  const flagged = ordered.filter(isFlagged);
+  const other = ordered.filter((change) => !isFlagged(change));
   const items = (changes: typeof ordered) => changes.map((change, index) => (
-    <li key={index}><ChangeItem change={change} sources={comparison.analysis.sources} /></li>
+    <li key={index}><ChangeItem change={change} sources={change.sources ?? comparison.analysis.sources} /></li>
   ));
 
   return <>
-    <ol className="change-list" aria-labelledby="changes-heading">{items(ordered.slice(0, 3))}</ol>
-    {ordered.length > 3 && <details className="remaining-changes">
-      <summary>Show {ordered.length - 3} more reviewed changes</summary>
-      <ol className="change-list">{items(ordered.slice(3))}</ol>
+    {flagged.length > 0 ? <ol className="change-list" aria-labelledby="changes-heading">{items(flagged)}</ol>
+      : <p className="message">No warning signs were flagged. You can inspect every reviewed passage below.</p>}
+    {other.length > 0 && <details className="remaining-changes">
+      <summary>Show {other.length} other reviewed passages</summary>
+      <ol className="change-list">{items(other)}</ol>
     </details>}
   </>;
 }

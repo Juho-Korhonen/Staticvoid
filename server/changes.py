@@ -71,7 +71,7 @@ def word_changes(old_line: str, new_line: str) -> list[dict]:
     return out
 
 
-def diff_texts(old: str, new: str, context_lines: int = 2) -> dict:
+def diff_texts(old: str, new: str, context_lines: int = 2, word_details: bool = True) -> dict:
     """Line diff of two wikitexts, plus word-level detail for edited paragraphs."""
     old_lines = old.splitlines()
     new_lines = new.splitlines()
@@ -91,7 +91,7 @@ def diff_texts(old: str, new: str, context_lines: int = 2) -> dict:
             removed.extend(old_lines[i1:i2])
         if tag in ("replace", "insert"):
             added.extend(new_lines[j1:j2])
-        if tag == "replace" and len(words) < MAX_WORD_CHANGES:
+        if word_details and tag == "replace" and len(words) < MAX_WORD_CHANGES:
             # Pair up paragraphs that were edited in place.
             for ol, nl in zip(old_lines[i1:i2], new_lines[j1:j2]):
                 if difflib.SequenceMatcher(None, ol, nl, autojunk=False).quick_ratio() > 0.6:
@@ -335,8 +335,9 @@ class ChangesStore:
         page_id: int,
         start: datetime,
         end: datetime,
-        max_revisions: int = 200,
+        max_revisions: int | None = 200,
         context_lines: int = 2,
+        word_details: bool = True,
     ) -> dict:
         if start >= end:
             raise ValueError("start must be before end")
@@ -359,8 +360,8 @@ class ChangesStore:
         in_range = [m for m in meta if m["timestamp"] >= start]
         baseline = before[-1] if before else None
 
-        truncated = len(in_range) > max_revisions
-        kept = in_range[-max_revisions:] if max_revisions > 0 else []
+        truncated = max_revisions is not None and len(in_range) > max_revisions
+        kept = in_range if max_revisions is None else (in_range[-max_revisions:] if max_revisions > 0 else [])
         # The version each kept revision is diffed against.
         if truncated:
             prev_of_first = in_range[-max_revisions - 1] if max_revisions > 0 else in_range[-1]
@@ -396,7 +397,7 @@ class ChangesStore:
         for m in kept:
             old_text = texts.get(prev["rev_id"], "") if prev else ""
             new_text = texts.get(m["rev_id"], "")
-            d = diff_texts(old_text, new_text, context_lines)
+            d = diff_texts(old_text, new_text, context_lines, word_details)
             # Revert: text identical to an older version that is not the direct predecessor.
             revert_of = None
             if m["sha1"] and m["sha1"] in first_with_sha:
@@ -408,6 +409,7 @@ class ChangesStore:
             revisions.append(
                 {
                     "rev_id": m["rev_id"],
+                    "before_rev_id": prev["rev_id"] if prev else None,
                     "parent_id": m["parent_id"],
                     "timestamp": iso(m["timestamp"]),
                     "title": m["title"],
@@ -431,6 +433,7 @@ class ChangesStore:
                 texts.get(baseline["rev_id"], "") if baseline else "",
                 texts.get(final["rev_id"], ""),
                 context_lines,
+                word_details,
             )
         else:
             net = {"added": [], "removed": [], "word_changes": [], "unified_diff": "", "blocks": []}
