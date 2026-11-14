@@ -117,7 +117,7 @@ The reading includes `overallNeutrality`, a short `summary`, and `possibleAgenda
 (a tentative interpretation of framing, or null when unsupported). Comparisons
 can span many editors; the reading does not establish an individual's intent.
 Each change contains the source excerpts, `explanation`, `framingChanges`,
-`neutralWording`, `neutrality`, `toneDelta` (-2 to +2), and `hedgeAdded`.
+`neutrality`, `toneDelta` (-2 to +2), and `hedgeAdded`.
 Each assessment also includes `flags`, `severity`, a tentative `possibleAgenda`,
 and the exact revision and source links. The card title uses `category`: trolling,
 vandalism, rhetorical change, factual edit, sourcing change, formatting, repair,
@@ -133,8 +133,8 @@ ordinary factual or formatting changes are not automatically suspicious.
 using schema-constrained IDs and supplied by the server. `sources` links to the exact earlier/later Wikipedia
 revisions and their diff; these URLs are built from dataset IDs, never generated
 by Gemini. These sources support wording comparisons, not historical fact checks.
-Positive tone does not imply neutrality. Explanations are English; suggested
-wording preserves the source language. JSON output is validated with Pydantic.
+Positive tone does not imply neutrality. Explanations are English.
+JSON output is validated with Pydantic.
 
 There is no overall revision or text cutoff. Requests contain up to 12 passages
 and 24,000 source characters, with up to four requests running concurrently per review.
