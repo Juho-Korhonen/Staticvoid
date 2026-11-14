@@ -50,7 +50,6 @@ export interface Change {
   neutrality: Neutrality;
   explanation: string;
   framingChanges: string[];
-  neutralWording: string | null;
   flags: Flag[];
   severity: Severity;
   possibleAgenda: string | null;

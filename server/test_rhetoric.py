@@ -27,7 +27,7 @@ class EvidenceTests(unittest.TestCase):
                 "possibleAgenda": "The wording may encourage opposition to the policy.",
                 "neutrality": "less_neutral", "explanation": "Disastrous adds negative judgment.",
                 "evidenceBeforeId": "0-before-0", "evidenceAfterId": "0-after-0",
-                "framingChanges": ["Negative framing"], "neutralWording": "A policy was introduced.",
+                "framingChanges": ["Negative framing"],
             }],
         }
         env = patch.dict(os.environ, {"GEMINI_API_KEY": "test-placeholder"})

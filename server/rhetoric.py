@@ -71,7 +71,6 @@ class ChangeAnalysis(BaseModel):
     evidenceBeforeId: str | None = Field(description="ID of a beforePassages entry for this change, or null.")
     evidenceAfterId: str | None = Field(description="ID of an afterPassages entry for this change, or null.")
     framingChanges: list[str]
-    neutralWording: str | None = Field(max_length=500, description="A short neutral alternative in the source language, or null when unnecessary.")
 
 
 class BatchAnalysis(BaseModel):

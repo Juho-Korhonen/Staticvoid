@@ -40,7 +40,6 @@ export default function ChangeItem({ change, sources }: { change: Change; source
         <Passage side="after" text={after} fallback={NOTHING_AFTER} href={sources.after} />
         <Passage side="before" text={before} fallback={NOTHING_BEFORE} href={sources.before} />
       </div>
-      {change.neutralWording && <p><strong>Suggested neutral wording:</strong> {change.neutralWording}</p>}
       {change.segmentCount > 1 && (
         <p className="reading-note">Part {change.segmentIndex} of {change.segmentCount} of a long change. All parts were inspected.</p>
       )}
