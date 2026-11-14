@@ -65,9 +65,9 @@ h2 { font-size: 1.45em; margin: 22px 0 10px; padding-bottom: 3px; border-bottom:
 .article-search-row { display: flex; align-items: center; gap: 8px; }
 
 .flag-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-.flag-filters button { padding: 4px 8px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); color: var(--blue); cursor: pointer; font-size: 12px; }
-.flag-filters button:hover { background: var(--blue-soft); }
-.flag-filters button[aria-pressed="true"] { background: var(--blue); border-color: var(--blue); color: #fff; }
+.flag-filters button, .result-views button { padding: 4px 8px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); color: var(--blue); cursor: pointer; font-size: 12px; }
+.flag-filters button:hover, .result-views button:hover { background: var(--blue-soft); }
+.flag-filters button[aria-pressed="true"], .result-views button[aria-pressed="true"] { background: var(--blue); border-color: var(--blue); color: #fff; }
 .change-list { list-style: none; margin: 0; padding: 0; }
 .change-list li + li { border-top: 1px solid #eaecf0; }
 .change { padding: 11px 4px 10px 12px; border-left: 3px solid var(--line); }
@@ -91,9 +91,11 @@ h2 { font-size: 1.45em; margin: 22px 0 10px; padding-bottom: 3px; border-bottom:
 .missing { color: var(--muted); font-style: italic; }
 .remaining-changes > summary { cursor: pointer; color: var(--blue); font-size: 12px; padding: 5px 0; }
 .remaining-changes { margin-top: 12px; }
+.result-views { display: flex; gap: 6px; margin-top: 8px; }
 
 .review-history { margin: 22px 0; padding: 14px 16px; border: 1px solid var(--line); }
 .review-history h2 { margin: 0 0 8px; border: 0; }
+
 .history-legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
 .history-legend button { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 3px; color: var(--text); cursor: pointer; font-size: 12px; }
 .history-legend button[aria-pressed="false"] { opacity: .5; text-decoration: line-through; }

@@ -22,6 +22,12 @@ export default function App() {
   const [search, setSearch] = useState({ ...DEFAULT_SEARCH, requestId: 0 });
   const { data, loading, error, progress, cancel } = useComparison(search.title, search.from, search.to, search.requestId);
   const validRange = isValidRange(from, to);
+  // The result section that is shown; null shows neither.
+  const [view, setView] = useState<'history' | 'review' | null>(null);
+
+  function toggleView(next: 'history' | 'review') {
+    setView((current) => (current === next ? null : next));
+  }
 
   function updateRange(nextFrom: string, nextTo: string) {
     setFrom(nextFrom);
@@ -81,15 +87,17 @@ export default function App() {
         {data && !loading && (
           <div aria-live="polite">
             <Summary comparison={data} />
-            <details className="remaining-changes">
-              <summary>View suspicious edit history</summary>
-              <ReviewHistory changes={data.analysis.changes} from={search.from} to={search.to} />
-            </details>
-            <details className="remaining-changes">
-              <summary>View suspicious edits and the full review</summary>
-              <h2 id="changes-heading">Evidence from the revisions</h2>
-              <ChangeList analysis={data.analysis} />
-            </details>
+            <div className="result-views">
+              <button type="button" aria-pressed={view === 'history'} onClick={() => toggleView('history')}>history</button>
+              <button type="button" aria-pressed={view === 'review'} onClick={() => toggleView('review')}>full review</button>
+            </div>
+            {view === 'history' && <ReviewHistory changes={data.analysis.changes} from={search.from} to={search.to} />}
+            {view === 'review' && (
+              <>
+                <h2 id="changes-heading">Evidence from the revisions</h2>
+                <ChangeList analysis={data.analysis} />
+              </>
+            )}
           </div>
         )}
       </main>
