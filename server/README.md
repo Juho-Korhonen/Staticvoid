@@ -110,9 +110,17 @@ curl 'http://127.0.0.1:8000/changes?title=Talvisota&start=2015-01-01&end=2016-01
 
 The pipeline stays Parquet → DuckDB → revision selection → text diff. Every saved
 revision in `[start, end)` is compared with its predecessor, then reviewed in
-batches through Google's official `google-genai` SDK. Reverted edits are included
+batches through Google's official `google-genai` SDK. The review has two stages to
+save time and quota: a small triage request first answers only "suspicious: yes/no"
+for every passage, and only the suspicious passages get the full analysis below.
+Hits are queued for full analysis as soon as their triage request returns, so both
+stages run at the same time in one pool of requests.
+Passages that triage clears stay in `changes` with neutral defaults (`category`
+`unclear`, no flags) and a fixed explanation saying no detailed analysis was run.
+Triage is told to answer yes when in doubt, but a subtle edit it clears is not
+analysed further. Reverted edits are included
 even when the start and end texts are identical. The response adds
-`rhetoric_analysis` with `summary`, `model`, `partial`, `totalChanges`, and `changes`.
+`rhetoric_analysis` with `summary`, `model`, `triageModel`, `partial`, `totalChanges`, and `changes`.
 The reading includes `overallNeutrality`, a short `summary`, and `possibleAgenda`
 (a tentative interpretation of framing, or null when unsupported). Comparisons
 can span many editors; the reading does not establish an individual's intent.
@@ -136,12 +144,13 @@ by Gemini. These sources support wording comparisons, not historical fact checks
 Positive tone does not imply neutrality. Explanations are English.
 JSON output is validated with Pydantic.
 
-There is no overall revision or text cutoff. Requests contain up to 12 passages
-and 24,000 source characters, with up to four requests running concurrently per review.
+There is no overall revision or text cutoff. Triage requests contain up to 48 passages
+and 60,000 source characters; full-analysis requests up to 12 passages and 24,000
+characters. Up to twelve requests run concurrently per review.
 Results retain revision order; cancellation or failure stops further requests from
 being scheduled, while in-flight requests may finish. Long blocks are split into 6,000-character segments
-with 200 characters of overlapping context; every segment is reviewed. The model
-must return an assessment for every supplied index before coverage advances.
+with 200 characters of overlapping context; every segment is screened. The model
+must return an answer for every supplied index before coverage advances.
 Rejected or invalid batches are retried in smaller groups, retaining every passage;
 the final result is still withheld if any passage cannot be validated.
 `coverage` reports inspected revisions, passages, original blocks and batches;
@@ -152,7 +161,8 @@ without text changes are checked locally and need no Gemini request. Page creati
 is included even without a baseline. Coverage applies to revisions in this dataset;
 automated detection cannot guarantee that every subtle manipulation is found.
 Omitting `analyze=true` makes no Gemini request. The default model is
-`gemini-3.5-flash-lite`; override it with `GEMINI_MODEL` if needed.
+`gemini-3.5-flash-lite` for both stages; override the full analysis with
+`GEMINI_MODEL` and the triage stage with `GEMINI_TRIAGE_MODEL` if needed.
 Quota failures return 429, configuration/connectivity failures 503, invalid model
 responses 502, and timeouts 504, without exposing SDK error bodies or credentials.
 
@@ -162,7 +172,7 @@ under `result`. Once streaming starts, failures use an `error` event with `statu
 and `detail`; they never return a successful partial review. The frontend displays
 progress and supports cancellation. Long periods require more requests and quota.
 
-Run the opt-in live smoke test (one real API request, uses your project's quota):
+Run the opt-in live smoke test (two real API requests, uses your project's quota):
 
 ```sh
 .venv/bin/python -m server.smoke_gemini

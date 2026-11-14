@@ -9,7 +9,7 @@ from unittest.mock import patch
 from google.genai import errors
 
 from .diff import diff_texts
-from .rhetoric import AnalysisError, analyze_changes, evidence_passages, iter_analysis, prepare_changes, revision_changes
+from .rhetoric import SCREENED_EXPLANATION, TRIAGE_INSTRUCTION, AnalysisError, analyze_changes, evidence_passages, iter_analysis, prepare_changes, revision_changes
 
 
 class EvidenceTests(unittest.TestCase):
@@ -33,6 +33,13 @@ class EvidenceTests(unittest.TestCase):
         env = patch.dict(os.environ, {"GEMINI_API_KEY": "test-placeholder"})
         env.start()
         self.addCleanup(env.stop)
+        # Triage clears nothing here, so every change reaches the full analysis.
+        triage = patch("server.rhetoric.triage_batch", return_value=[])
+        triage.start()
+        self.addCleanup(triage.stop)
+        concurrency = patch("server.rhetoric.BATCH_CONCURRENCY", 4)
+        concurrency.start()
+        self.addCleanup(concurrency.stop)
         client = patch("server.rhetoric.genai.Client")
         self.factory = client.start()
         self.addCleanup(client.stop)
@@ -124,7 +131,7 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(len(result["changes"]), 27)
         self.assertEqual(self.generate.call_count, 3)
         self.assertEqual(result["coverage"]["reviewedChanges"], 27)
-        self.assertEqual(result["coverage"]["completedBatches"], 3)
+        self.assertEqual(result["coverage"]["completedBatches"], 4)  # one triage batch, three full
         self.assertFalse(result["partial"])
         sent = [json.loads(call.kwargs["contents"])["changes"] for call in self.generate.call_args_list]
         self.assertEqual(sorted(c["changeIndex"] for batch in sent for c in batch), list(range(27)))
@@ -173,7 +180,7 @@ class EvidenceTests(unittest.TestCase):
         try:
             self.assertEqual(next(events)['reviewedChanges'], 0)
             # Other batches report progress even while the first request is blocked.
-            progress = next(events)
+            progress = next(e for e in events if e['reviewedChanges'])
             self.assertEqual(progress['reviewedChanges'], 12)
             self.assertEqual(progress['reviewedRevisions'], 0)
             release_first.set()
@@ -186,7 +193,7 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(self.generate.call_count, 5)
         self.assertEqual([c['changeIndex'] for c in result['changes']], list(range(60)))
         self.assertEqual(result['coverage']['reviewedRevisions'], 3)
-        self.assertEqual(result['coverage']['completedBatches'], 5)
+        self.assertEqual(result['coverage']['completedBatches'], 7)  # two triage batches, five full
         counts = [e['reviewedChanges'] for e in remaining if e['type'] == 'progress']
         self.assertEqual(counts, sorted(counts))
         self.assertEqual(counts[-1], 60)
@@ -240,8 +247,7 @@ class EvidenceTests(unittest.TestCase):
     def test_closing_review_stops_subsequent_batches(self):
         self.generate.side_effect = self.respond_to_batch
         events = iter_analysis('Test', self.source * 60)
-        next(events)
-        next(events)
+        next(e for e in events if e['reviewedChanges'])
         events.close()
         self.assertGreaterEqual(self.generate.call_count, 1)
         self.assertLessEqual(self.generate.call_count, 4)
@@ -271,6 +277,81 @@ class EvidenceTests(unittest.TestCase):
     def test_truncated_history_is_not_accepted_as_complete(self):
         with self.assertRaises(AnalysisError):
             revision_changes({'revisions': [], 'summary': {'revisions': 200}, 'truncated': True})
+
+
+class TriageTests(unittest.TestCase):
+    def setUp(self):
+        self.source = [{"kind": "modified", "oldText": "A policy was introduced.",
+                        "newText": "A disastrous policy was imposed."}] * 5
+        self.suspicious = set()
+        env = patch.dict(os.environ, {"GEMINI_API_KEY": "test-placeholder", "GEMINI_TRIAGE_MODEL": "triage-test"})
+        env.start()
+        self.addCleanup(env.stop)
+        client = patch("server.rhetoric.genai.Client")
+        self.generate = client.start().return_value.__enter__.return_value.models.generate_content
+        self.addCleanup(client.stop)
+        self.generate.side_effect = self.respond
+
+    def respond(self, **kwargs):
+        changes = json.loads(kwargs["contents"])["changes"]
+        if kwargs["config"].system_instruction == TRIAGE_INSTRUCTION:
+            return self.decisions(changes)
+        return SimpleNamespace(text=json.dumps({"changes": [{
+            "changeIndex": c["changeIndex"], "toneDelta": -1, "hedgeAdded": False,
+            "category": "rhetorical_change", "rhetoricalCategory": "loaded_language",
+            "flags": ["loaded_language"], "severity": "medium", "possibleAgenda": None,
+            "neutrality": "less_neutral", "explanation": "Disastrous adds negative judgment.",
+            "evidenceBeforeId": None, "evidenceAfterId": next(iter(c["afterPassages"])),
+            "framingChanges": [],
+        } for c in changes]}))
+
+    def decisions(self, changes):
+        return SimpleNamespace(text=json.dumps({"changes": [
+            {"changeIndex": c["changeIndex"], "suspicious": c["changeIndex"] in self.suspicious} for c in changes]}))
+
+    def test_cleared_changes_need_no_full_analysis(self):
+        result = analyze_changes("Test", self.source)
+        self.assertEqual(self.generate.call_count, 1)
+        self.assertEqual(result["flaggedChanges"], 0)
+        self.assertEqual(result["coverage"]["reviewedChanges"], 5)
+        self.assertEqual({c["explanation"] for c in result["changes"]}, {SCREENED_EXPLANATION})
+
+    def test_only_suspicious_changes_get_full_analysis(self):
+        self.suspicious = {1, 3}
+        result = analyze_changes("Test", self.source)
+        triage, full = self.generate.call_args_list
+        self.assertEqual(triage.kwargs["model"], "triage-test")
+        self.assertEqual(result["triageModel"], "triage-test")
+        self.assertEqual(full.kwargs["model"], result["model"])
+        self.assertEqual([c["changeIndex"] for c in json.loads(full.kwargs["contents"])["changes"]], [1, 3])
+        self.assertEqual([c["changeIndex"] for c in result["changes"]], list(range(5)))
+        self.assertEqual([bool(c["flags"]) for c in result["changes"]], [False, True, False, True, False])
+        self.assertEqual(result["coverage"]["completedBatches"], 2)
+
+    def test_hits_are_analysed_while_triage_is_still_running(self):
+        self.suspicious = {0}
+        analysis_started = Event()
+        respond = self.respond
+        def hold_second_triage_batch(**kwargs):
+            first_index = json.loads(kwargs["contents"])["changes"][0]["changeIndex"]
+            if kwargs["config"].system_instruction != TRIAGE_INSTRUCTION:
+                analysis_started.set()
+            elif first_index:
+                self.assertTrue(analysis_started.wait(timeout=5))
+            return respond(**kwargs)
+        self.generate.side_effect = hold_second_triage_batch
+        result = analyze_changes("Test", self.source * 12)
+        self.assertEqual(result["coverage"]["reviewedChanges"], 60)
+        self.assertEqual(result["flaggedChanges"], 1)
+
+    def test_incomplete_triage_splits_without_losing_changes(self):
+        answer = self.decisions
+        def drop_last_of_large_batches(changes):
+            return answer(changes[:-1] if len(changes) > 2 else changes)
+        self.decisions = drop_last_of_large_batches
+        result = analyze_changes("Test", self.source)
+        self.assertEqual([c["changeIndex"] for c in result["changes"]], list(range(5)))
+        self.assertGreater(result["coverage"]["completedBatches"], 1)
 
 
 if __name__ == "__main__":
