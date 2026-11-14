@@ -5,6 +5,24 @@ export interface PageSearchResult {
   n_versions: number;
 }
 
+// Gemini output from server/rhetoric.py, adapted for the UI by articleService.ts.
+
+export type Neutrality = 'more_neutral' | 'less_neutral' | 'unchanged' | 'unclear';
+
+export const neutralityLabels: Record<Neutrality | 'mixed', string> = {
+  more_neutral: 'More objective',
+  less_neutral: 'More rhetorical',
+  unchanged: 'No clear shift in neutrality',
+  unclear: 'Not enough context to judge',
+  mixed: 'Mixed: objective and rhetorical changes',
+};
+
+export interface Sources {
+  before: string;
+  after: string;
+  diff: string;
+}
+
 export interface ArticlePage {
   n_versions: number;
   created: string;
@@ -70,15 +88,34 @@ export interface ArticleChanges {
   revisions: RevisionChange[];
   net_change: NetChange;
   truncated: boolean;
+  rhetoric_analysis?: Analysis;
 }
 
-// UI-facing model retained for the current tone-summary components.
+// UI-facing model for the Gemini reading and quoted evidence.
 export interface Change {
   kind: 'modified' | 'added' | 'removed';
   oldText: string | null;
   newText: string | null;
   toneDelta: number;
   hedgeAdded: boolean;
+  neutrality: Neutrality;
+  explanation: string;
+  evidenceBefore: string | null;
+  evidenceAfter: string | null;
+  framingChanges: string[];
+  neutralWording: string | null;
+  textTruncated: boolean;
+}
+
+export interface Analysis {
+  summary: string;
+  overallNeutrality: Neutrality | 'mixed';
+  possibleAgenda: string | null;
+  model: string | null;
+  partial: boolean;
+  totalChanges: number;
+  changes: Change[];
+  sources: Sources;
 }
 
 export interface RevisionInfo {
@@ -92,4 +129,7 @@ export interface Comparison {
   from: RevisionInfo | null;
   to: RevisionInfo | null;
   changes: Change[];
+  analysis: Analysis;
+  revisionCount: number;
+  editorCount: number;
 }

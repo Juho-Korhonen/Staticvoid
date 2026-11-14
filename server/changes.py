@@ -78,8 +78,15 @@ def diff_texts(old: str, new: str, context_lines: int = 2) -> dict:
     added: list[str] = []
     removed: list[str] = []
     words: list[dict] = []
+    blocks: list[dict] = []
     matcher = difflib.SequenceMatcher(None, old_lines, new_lines, autojunk=False)
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag != "equal":
+            blocks.append({
+                "kind": {"replace": "modified", "insert": "added", "delete": "removed"}[tag],
+                "oldText": "\n".join(old_lines[i1:i2]) if i1 != i2 else None,
+                "newText": "\n".join(new_lines[j1:j2]) if j1 != j2 else None,
+            })
         if tag in ("replace", "delete"):
             removed.extend(old_lines[i1:i2])
         if tag in ("replace", "insert"):
@@ -96,7 +103,8 @@ def diff_texts(old: str, new: str, context_lines: int = 2) -> dict:
     # Drop the "--- / +++" header lines, they carry no information here.
     if unified.startswith("---"):
         unified = unified.split("\n", 2)[2] if unified.count("\n") >= 2 else ""
-    return {"added": added, "removed": removed, "word_changes": words, "unified_diff": unified}
+    return {"added": added, "removed": removed, "word_changes": words, "unified_diff": unified,
+            "blocks": blocks}
 
 
 _QUERY_TERM = re.compile(r'"([^"]+)"|(\S+)')
@@ -425,7 +433,7 @@ class ChangesStore:
                 context_lines,
             )
         else:
-            net = {"added": [], "removed": [], "word_changes": [], "unified_diff": ""}
+            net = {"added": [], "removed": [], "word_changes": [], "unified_diff": "", "blocks": []}
 
         page = cur.execute(
             "SELECT title, n_versions, created, last_edit FROM pages WHERE page_id = ?", [page_id]

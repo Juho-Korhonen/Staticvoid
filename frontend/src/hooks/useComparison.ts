@@ -13,21 +13,29 @@ export function useComparison(title: string, from: string, to: string): State {
   const [state, setState] = useState<State>({ data: null, loading: true, error: null });
 
   useEffect(() => {
-    if (!from || !to) return;
-
-    // The user may pick the dates in the wrong order, so sort them.
-    const [start, end] = from <= to ? [from, to] : [to, from];
+    if (!from || !to || from >= to) {
+      setState({ data: null, loading: false, error: null });
+      return;
+    }
     const controller = new AbortController();
 
     setState((prev) => ({ ...prev, loading: true, error: null }));
-    compareArticle(title, start, end, controller.signal)
-      .then((data) => setState({ data, loading: false, error: null }))
-      .catch((err: Error) => {
-        if (err.name === 'AbortError') return; // a newer request replaced this one
-        setState({ data: null, loading: false, error: err.message });
-      });
+    // Debounce date edits and React StrictMode's replay before making paid requests.
+    const timer = window.setTimeout(() => {
+      compareArticle(title, from, to, controller.signal)
+        .then((data) => {
+          if (!controller.signal.aborted) setState({ data, loading: false, error: null });
+        })
+        .catch((err: Error) => {
+          if (controller.signal.aborted) return; // a newer request replaced this one
+          setState({ data: null, loading: false, error: err.message });
+        });
+    }, 400);
 
-    return () => controller.abort();
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
   }, [title, from, to]);
 
   return state;

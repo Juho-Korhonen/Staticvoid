@@ -7,18 +7,18 @@ through the Vite proxy: `/api/*` is forwarded to `http://127.0.0.1:8000/*`.
 
 ## Install
 
-Requires Python 3.10+. Paste one line in a terminal, in the `mariadb/` folder.
+Requires Python 3.10+. Run from the repository root.
 
 Linux / macOS:
 
 ```sh
-python3 -m venv .venv && .venv/bin/python -m pip install "duckdb>=1.5,<2" pytz "fastapi>=0.115" "uvicorn>=0.30"
+python3 -m venv .venv && .venv/bin/python -m pip install -r server/requirements.txt
 ```
 
 Windows (PowerShell):
 
 ```powershell
-py -m venv .venv; .venv\Scripts\python -m pip install "duckdb>=1.5,<2" pytz "fastapi>=0.115" "uvicorn>=0.30"
+py -m venv .venv; .venv\Scripts\python -m pip install -r server/requirements.txt
 ```
 
 This creates a local `.venv/` (git-ignored), so nothing is installed system-wide.
@@ -26,7 +26,7 @@ This creates a local `.venv/` (git-ignored), so nothing is installed system-wide
 
 ## Run
 
-From the `mariadb/` folder (no need to activate the venv):
+From the repository root (no need to activate the venv):
 
 ```sh
 .venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 8000
@@ -93,6 +93,57 @@ wikitext instead.
 
 Errors: `422` (missing or out-of-range params), `400` (bad date, start ≥ end, neither
 `title` nor `page_id`), `404` (unknown article).
+
+## Gemini rhetoric analysis
+
+Set `GEMINI_API_KEY` in the server environment or the root `.env` (see
+`.env.example`). Exported variables take precedence. The key stays on the Python
+server; never put it in frontend code or a `VITE_` variable. `.env` files are ignored
+by Git. Restart the server after changing configuration.
+
+Add `analyze=true` to the existing endpoint:
+
+```sh
+curl 'http://127.0.0.1:8000/changes?title=Talvisota&start=2015-01-01&end=2016-01-01&max_revisions=0&analyze=true'
+```
+
+The pipeline stays Parquet → DuckDB → revision selection → text diff, followed
+by one request through Google's official `google-genai` SDK. The response adds
+`rhetoric_analysis` with `summary`, `model`, `partial`, `totalChanges`, and `changes`.
+The reading includes `overallNeutrality`, a short `summary`, and `possibleAgenda`
+(a tentative interpretation of framing, or null when unsupported). Comparisons
+can span many editors; the reading does not establish an individual's intent.
+Each change contains the source excerpts, `explanation`, `framingChanges`,
+`neutralWording`, `neutrality`, `toneDelta` (-2 to +2), and `hedgeAdded`.
+`evidenceBefore` and `evidenceAfter` are exact source passages selected by Gemini
+using schema-constrained IDs and supplied by the server. `sources` links to the exact earlier/later Wikipedia
+revisions and their diff; these URLs are built from dataset IDs, never generated
+by Gemini. These sources support wording comparisons, not historical fact checks.
+Positive tone does not imply neutrality. Explanations are English; suggested
+wording preserves the source language. JSON output is validated with Pydantic.
+
+For hackathon latency and cost, analysis covers the first 12 diff blocks, at most
+2,000 characters per before/after excerpt. `partial` and `textTruncated` indicate
+these limits. The raw diff remains available; `blocks` contains paired before/after
+text. Missing endpoint revisions return 400; identical revisions need no API call.
+Omitting `analyze=true` makes no Gemini request. The default model is
+`gemini-3.5-flash-lite`; override it with `GEMINI_MODEL` if needed.
+Quota failures return 429, configuration/connectivity failures 503, invalid model
+responses 502, and timeouts 504, without exposing SDK error bodies or credentials.
+
+Run the opt-in live smoke test (one real API request, uses your project's quota):
+
+```sh
+.venv/bin/python -m server.smoke_gemini
+```
+
+It prints `PASS` and validated analysis of a short synthetic wording change, or
+exits nonzero with a safe error. No key is printed. SDK reference:
+[Google GenAI Python SDK](https://googleapis.github.io/python-genai/).
+
+The React frontend calls `/changes?analyze=true` for the submitted Finnish Wikipedia
+article (default: `Suomen sisällissota`). It shows a short reading and possible framing goal. Expand “Why?”
+for the leading findings with quoted evidence and details of the remaining changes.
 
 ## Response
 

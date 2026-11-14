@@ -2,5 +2,7 @@ __pycache__/
 *.pyc
 *.zip
 .env
+.env.*
+!.env.example
 .venv/
 node_modules/
