@@ -7,21 +7,32 @@ Node backend.
 
 ## Install
 
-Requires Python 3.10+. From the `mariadb/` folder:
+Requires Python 3.10+. Paste one line in a terminal, in the `mariadb/` folder.
+
+Linux / macOS:
 
 ```sh
-python3 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r server/requirements.txt
+python3 -m venv .venv && .venv/bin/python -m pip install "duckdb>=1.5,<2" pytz "fastapi>=0.115" "uvicorn>=0.30"
 ```
+
+Windows (PowerShell):
+
+```powershell
+py -m venv .venv; .venv\Scripts\python -m pip install "duckdb>=1.5,<2" pytz "fastapi>=0.115" "uvicorn>=0.30"
+```
+
+This creates a local `.venv/` (git-ignored), so nothing is installed system-wide.
+(`pytz` is needed for DuckDB to return timezone-aware timestamps.)
 
 ## Run
 
-From the `mariadb/` folder, with the venv active:
+From the `mariadb/` folder (no need to activate the venv):
 
 ```sh
-uvicorn server.app:app --host 127.0.0.1 --port 8000
+.venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 8000
 ```
+
+Windows: `.venv\Scripts\uvicorn server.app:app --host 127.0.0.1 --port 8000`
 
 Startup takes a few seconds (builds a title index). `DATA_DIR` overrides the Parquet folder.
 Interactive docs: http://127.0.0.1:8000/docs

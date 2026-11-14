@@ -1,6 +1,0 @@
-# Python 3.10+ required.
-# Install: python -m pip install -r server/requirements.txt
-duckdb>=1.5,<2
-pytz            # duckdb needs it to return timezone-aware timestamps
-fastapi>=0.115
-uvicorn>=0.30
