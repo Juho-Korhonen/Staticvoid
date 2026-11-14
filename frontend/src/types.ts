@@ -9,6 +9,12 @@ export interface PageSearchResult {
 export type Neutrality = 'more_neutral' | 'less_neutral' | 'unchanged' | 'unclear';
 export type OverallNeutrality = Neutrality | 'mixed';
 export type Severity = 'none' | 'low' | 'medium' | 'high';
+export type ChangeCategory =
+  | 'trolling' | 'vandalism' | 'rhetorical_change' | 'factual_update'
+  | 'sourcing_change' | 'formatting' | 'repair' | 'unclear';
+export type RhetoricalCategory =
+  | 'loaded_language' | 'blame_or_credit' | 'downplaying_or_exaggeration'
+  | 'selective_emphasis' | 'certainty_shift' | 'attribution_shift';
 export type Flag =
   | 'possible_vandalism' | 'loaded_language' | 'framing_shift' | 'unsupported_claim' | 'source_removal'
   | 'content_removal' | 'undue_weight' | 'attribution_change' | 'certainty_shift';
@@ -34,6 +40,8 @@ export type AnalysisProgress = { stage: 'loading' | 'analyzing' } & Partial<Anal
 /** One reviewed passage of one revision, with Gemini's reading of it. */
 export interface Change {
   changeIndex: number;
+  category: ChangeCategory;
+  rhetoricalCategory: RhetoricalCategory | null;
   kind: 'modified' | 'added' | 'removed';
   oldText: string | null;
   newText: string | null;

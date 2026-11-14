@@ -1,4 +1,4 @@
-import { flagLabels, neutralityLabels } from '../labels';
+import { categoryLabels, rhetoricalCategoryLabels } from '../labels';
 import type { Change, Sources } from '../types';
 import { readableWikiText } from '../utils/readableWikiText';
 import { isFlagged } from '../utils/review';
@@ -29,12 +29,10 @@ export default function ChangeItem({ change, sources }: { change: Change; source
   const { revision } = change;
   return (
     <article className={`change ${direction(change)}`}>
-      <strong>{neutralityLabels[change.neutrality]}</strong>
-      {change.flags.length > 0 && (
-        <p className="reading-note">
-          <strong>{change.severity.toUpperCase()}:</strong> {change.flags.map((flag) => flagLabels[flag]).join(' · ')}
-        </p>
-      )}
+      <strong>
+        {categoryLabels[change.category] ?? 'Unclassified change'}
+        {change.category === 'rhetorical_change' && change.rhetoricalCategory && ` · ${rhetoricalCategoryLabels[change.rhetoricalCategory]}`}
+      </strong>
       {revision && <p className="reading-note">Revision {revision.id} · {revision.timestamp}{revision.isRevert && ' · revert'}</p>}
       <p className="change-explanation">{change.explanation}</p>
       {change.possibleAgenda && <p className="reading-note">Possible framing goal: {change.possibleAgenda}</p>}

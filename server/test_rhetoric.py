@@ -22,6 +22,7 @@ class EvidenceTests(unittest.TestCase):
             "possibleAgenda": "The wording may encourage opposition to the policy.",
             "changes": [{
                 "changeIndex": 0, "toneDelta": -1, "hedgeAdded": False,
+                "category": "rhetorical_change", "rhetoricalCategory": "loaded_language",
                 "flags": ["loaded_language"], "severity": "medium",
                 "possibleAgenda": "The wording may encourage opposition to the policy.",
                 "neutrality": "less_neutral", "explanation": "Disastrous adds negative judgment.",
@@ -45,8 +46,41 @@ class EvidenceTests(unittest.TestCase):
         result = self.analyze()
         self.assertEqual(result["changes"][0]["oldText"], self.source[0]["oldText"])
         self.assertEqual(result["changes"][0]["evidenceAfter"], self.source[0]["newText"])
+        self.assertEqual(result["changes"][0]["category"], "rhetorical_change")
+        self.assertEqual(result["changes"][0]["rhetoricalCategory"], "loaded_language")
         sent = json.loads(self.generate.call_args.kwargs["contents"])
         self.assertEqual(sent["revisionContext"], {"revisions": 5, "editors": 3})
+
+    def test_invalid_or_inconsistent_categories_are_rejected(self):
+        for category, subtype in (
+            ('invented', None), ('rhetorical_change', None),
+            ('rhetorical_change', 'invented'), ('formatting', 'loaded_language'),
+        ):
+            with self.subTest(category=category, subtype=subtype):
+                self.response['changes'][0].update(category=category, rhetoricalCategory=subtype)
+                with self.assertRaises(AnalysisError):
+                    self.analyze()
+
+    def test_trolling_and_vandalism_require_flags_and_evidence(self):
+        for category in ('trolling', 'vandalism'):
+            with self.subTest(category=category):
+                finding = self.response['changes'][0]
+                finding.update(category=category, rhetoricalCategory=None, flags=[], neutrality='unchanged')
+                with self.assertRaises(AnalysisError):
+                    self.analyze()
+                finding.update(flags=['possible_vandalism'], evidenceBeforeId=None, evidenceAfterId=None)
+                with self.assertRaises(AnalysisError):
+                    self.analyze()
+                finding['evidenceAfterId'] = '0-after-0'
+                self.assertEqual(self.analyze()['changes'][0]['category'], category)
+
+    def test_benign_change_keeps_category_without_becoming_flagged(self):
+        self.response['changes'][0].update(category='formatting', rhetoricalCategory=None,
+                                          flags=[], severity='none', neutrality='unchanged', possibleAgenda=None)
+        result = self.analyze()
+        self.assertEqual(result['changes'][0]['category'], 'formatting')
+        self.assertIsNone(result['changes'][0]['rhetoricalCategory'])
+        self.assertEqual(result['flaggedChanges'], 0)
 
     def test_missing_or_invalid_evidence_is_rejected(self):
         for passage_id in ("0-after-999", "0-before-0", "invented quotation"):
