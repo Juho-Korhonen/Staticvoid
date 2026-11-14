@@ -7,11 +7,13 @@ import Summary from './components/Summary';
 import ReviewHistory from './components/ReviewHistory';
 import ChangeList from './components/ChangeList';
 import { useComparison } from './hooks/useComparison';
+import { useArticleDates } from './hooks/useArticleDates';
 
 const DEFAULT_SEARCH = { title: 'Suomen sisällissota', from: '2015-01-01', to: '2015-03-01' };
 
-function isValidRange(from: string, to: string): boolean {
-  return Boolean(from && to && from < to);
+function isValidRange(from: string, to: string, minDate: string | null, maxDate: string): boolean {
+  const start = Date.parse(from), end = Date.parse(to);
+  return minDate !== null && Date.parse(minDate) <= start && start < end && end <= Date.parse(maxDate);
 }
 
 export default function App() {
@@ -23,7 +25,9 @@ export default function App() {
   // The started review, null until the first start; `requestId` lets Start review re-run an identical review.
   const [search, setSearch] = useState<typeof DEFAULT_SEARCH & { requestId: number } | null>(null);
   const { data, loading, error, progress, cancel } = useComparison(search?.title ?? '', search?.from ?? '', search?.to ?? '', search?.requestId);
-  const validRange = isValidRange(from, to);
+  const { firstEdit, loading: datesLoading, error: datesError } = useArticleDates(article);
+  const today = new Date().toISOString().split('T')[0];
+  const validRange = isValidRange(from, to, firstEdit, today);
   // The result section that is shown; null shows neither.
   const [view, setView] = useState<'history' | 'review' | null>(null);
 
@@ -32,6 +36,7 @@ export default function App() {
   }
 
   function startReview() {
+    if (!validRange) return;
     setSearch((prev) => ({ title: article, from, to, requestId: (prev?.requestId ?? 0) + 1 }));
   }
 
@@ -63,6 +68,8 @@ export default function App() {
         <DateRangePicker
           from={from}
           to={to}
+          minDate={firstEdit}
+          maxDate={today}
           onFromChange={setFrom}
           onToChange={setTo}
           showStart={!loading}
@@ -70,7 +77,13 @@ export default function App() {
           onStart={startReview}
         />
 
-        {from && to && !validRange && <p className="message validation" role="status">The first date needs to be earlier than the second.</p>}
+        {datesLoading && <p className="reading-note" role="status">Loading article dates…</p>}
+        {datesError && <p className="message error" role="alert">Could not load article dates: {datesError}</p>}
+        {from && to && firstEdit && !validRange && (
+          <p className="message validation" role="status">
+            Choose dates between {firstEdit} and {today}, with the first date earlier than the second.
+          </p>
+        )}
         {error && (
           <div className="message error" role="alert">
             <p>Could not load the comparison: {error}</p>

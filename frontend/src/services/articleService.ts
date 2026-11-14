@@ -1,6 +1,9 @@
 import type { AnalysisProgress, AnalyzedArticle, Comparison, PageSearchResult } from '../types';
 
 const API_URL = '/api';
+const ISO_DATE_LENGTH = 'YYYY-MM-DD'.length;
+// A period before Wikipedia existed returns page metadata without loading revision text.
+const METADATA_RANGE = { start: '1970-01-01', end: '1970-01-02' };
 
 type AnalysisEvent =
   | ({ type: 'progress' } & AnalysisProgress)
@@ -52,6 +55,14 @@ function toComparison(result: AnalyzedArticle): Comparison {
 export async function searchArticles(query: string, limit: number, signal?: AbortSignal): Promise<PageSearchResult[]> {
   const params = new URLSearchParams({ q: query, limit: String(limit) });
   return (await request(`/pages/search?${params}`, signal)).json();
+}
+
+/** First saved revision date; this metadata lookup never requests Gemini analysis. */
+export async function firstEditDate(title: string, signal?: AbortSignal): Promise<string> {
+  const params = new URLSearchParams({ title, ...METADATA_RANGE, max_revisions: '0', analyze: 'false' });
+  const result: { page: { created: string | null } | null } = await (await request(`/changes?${params}`, signal)).json();
+  if (!result.page?.created) throw new Error('The first saved edit date is unavailable.');
+  return result.page.created.slice(0, ISO_DATE_LENGTH);
 }
 
 /** Review every saved edit, reporting progress until a complete result arrives. */
