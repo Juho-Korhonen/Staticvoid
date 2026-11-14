@@ -12,17 +12,18 @@ Requires Python 3.10+. Run from the repository root.
 Linux / macOS:
 
 ```sh
-python3 -m venv .venv && .venv/bin/python -m pip install -r server/requirements.txt
+python3 -m venv .venv && .venv/bin/python -m pip install duckdb pytz fastapi uvicorn google-genai httpx pydantic python-dotenv pyarrow pandas
 ```
 
 Windows (PowerShell):
 
 ```powershell
-py -m venv .venv; .venv\Scripts\python -m pip install -r server/requirements.txt
+py -m venv .venv; .venv\Scripts\python -m pip install duckdb pytz fastapi uvicorn google-genai httpx pydantic python-dotenv pyarrow pandas
 ```
 
 This creates a local `.venv/` (git-ignored), so nothing is installed system-wide.
-(`pytz` is needed for DuckDB to return timezone-aware timestamps.)
+(`pytz` is needed for DuckDB to return timezone-aware timestamps. `pyarrow` and `pandas`
+are not needed by the server, but are handy for exploring the Parquet data.)
 
 ## Run
 
