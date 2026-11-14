@@ -76,11 +76,12 @@ h2 { font-size: 1.45em; margin: 22px 0 10px; padding-bottom: 3px; border-bottom:
 .flag-filters button:hover, .result-views button:hover { background: var(--blue-soft); }
 .flag-filters button[aria-pressed="true"], .result-views button[aria-pressed="true"] { background: var(--blue); border-color: var(--blue); color: #fff; }
 .change-list { list-style: none; margin: 0; padding: 0; }
-.change-list li + li { border-top: 1px solid var(--line-soft); }
-.change { padding: 11px 4px 10px 12px; border-left: 3px solid var(--line-soft); }
+.change-list li + li { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.change { padding: 12px 14px; border-left: 4px solid var(--line); background: var(--page); }
+.change-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 12px; }
 .change.positive { border-color: var(--positive); }
 .change.negative { border-color: var(--negative); }
-.change-copy { display: grid; grid-template-columns: max-content 1fr; gap: 6px 8px; margin-bottom: 6px; }
+.change-copy { display: grid; grid-template-columns: max-content 1fr; align-items: baseline; gap: 6px 8px; margin-bottom: 6px; }
 .change-copy p { display: contents; }
 .change-label { color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .change-label.before { color: var(--removed-text); }

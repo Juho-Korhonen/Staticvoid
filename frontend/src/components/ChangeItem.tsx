@@ -16,6 +16,16 @@ function Passage({ side, tokens, href }: { side: 'before' | 'after'; tokens: Tok
   );
 }
 
+// "17:55, 4.1.2015" in UTC: the time first, then the date written the Finnish way.
+const EDIT_CLOCK = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' });
+const EDIT_DATE = new Intl.DateTimeFormat('fi-FI', { timeZone: 'UTC', day: 'numeric', month: 'numeric', year: 'numeric' });
+
+/** The edit's time for reading; an unparseable timestamp is shown as it is. */
+function editTime(timestamp: string): string {
+  const time = Date.parse(timestamp);
+  return Number.isFinite(time) ? `${EDIT_CLOCK.format(time)}, ${EDIT_DATE.format(time)}` : timestamp;
+}
+
 function direction(change: Change): string {
   if (isFlagged(change)) return 'negative';
   return change.neutrality === 'more_neutral' ? 'positive' : '';
@@ -26,11 +36,13 @@ export default function ChangeItem({ change, sources }: { change: Change; source
   const { before, after } = changedText(change.oldText, change.newText);
   return (
     <article className={`change ${direction(change)}`}>
-      <strong>
-        {categoryLabels[change.category] ?? 'Unclassified change'}
-        {change.category === 'rhetorical_change' && change.rhetoricalCategory && ` · ${rhetoricalCategoryLabels[change.rhetoricalCategory]}`}
-      </strong>
-      {revision && <p className="reading-note">Revision {revision.id} · {revision.timestamp}{revision.isRevert && ' · revert'}</p>}
+      <header className="change-header">
+        <strong>
+          {categoryLabels[change.category] ?? 'Unclassified change'}
+          {change.category === 'rhetorical_change' && change.rhetoricalCategory && ` · ${rhetoricalCategoryLabels[change.rhetoricalCategory]}`}
+        </strong>
+        {revision && <time className="reading-note" dateTime={revision.timestamp}>{editTime(revision.timestamp)}{revision.isRevert && ' · revert'}</time>}
+      </header>
       <p className="change-explanation">{change.explanation}</p>
       {change.possibleAgenda && <p className="reading-note">Possible framing goal: {change.possibleAgenda}</p>}
       <div className="change-copy">
