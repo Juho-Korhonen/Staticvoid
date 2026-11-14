@@ -25,7 +25,9 @@ export default function App() {
   // The started review, null until the first start; `requestId` lets Start review re-run an identical review.
   const [search, setSearch] = useState<typeof DEFAULT_SEARCH & { requestId: number } | null>(null);
   const { data, loading, error, progress, cancel } = useComparison(search?.title ?? '', search?.from ?? '', search?.to ?? '', search?.requestId);
-  const { firstEdit, loading: datesLoading, error: datesError } = useArticleDates(article);
+  const { firstEdit, error: datesError } = useArticleDates(article);
+  // Results and errors of a review of another article are not shown under this one.
+  const reviewIsOfArticle = search?.title === article;
   const today = new Date().toISOString().split('T')[0];
   const validRange = isValidRange(from, to, firstEdit, today);
   // The result section that is shown; null shows neither.
@@ -40,14 +42,19 @@ export default function App() {
     setSearch((prev) => ({ title: article, from, to, requestId: (prev?.requestId ?? 0) + 1 }));
   }
 
+  function chooseArticle(chosen: string) {
+    if (chosen !== article && loading) cancel(); // the running review is of the previous article
+    setArticle(chosen);
+  }
+
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (title.trim()) setArticle(title.trim());
+    if (title.trim()) chooseArticle(title.trim());
   }
 
   function chooseSuggestion(chosen: string) {
     setTitle(chosen);
-    setArticle(chosen);
+    chooseArticle(chosen);
   }
 
   return (
@@ -77,21 +84,20 @@ export default function App() {
           onStart={startReview}
         />
 
-        {datesLoading && <p className="reading-note" role="status">Loading article dates…</p>}
         {datesError && <p className="message error" role="alert">Could not load article dates: {datesError}</p>}
         {from && to && firstEdit && !validRange && (
           <p className="message validation" role="status">
             Choose dates between {firstEdit} and {today}, with the first date earlier than the second.
           </p>
         )}
-        {error && (
+        {error && reviewIsOfArticle && (
           <div className="message error" role="alert">
             <p>Could not load the comparison: {error}</p>
           </div>
         )}
         {loading && <ReviewProgress progress={progress} onCancel={cancel} />}
 
-        {data && !loading && (
+        {data && !loading && reviewIsOfArticle && (
           <div aria-live="polite">
             <Summary comparison={data} />
             <div className="result-views">

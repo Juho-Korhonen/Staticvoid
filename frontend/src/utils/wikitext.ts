@@ -2,7 +2,7 @@
 
 export type Token =
   | { kind: 'text' | 'hidden' | 'break'; raw: string }
-  | { kind: 'link'; raw: string; label: string; href: string }
+  | { kind: 'link'; raw: string; label: string; href: string | null }
   | { kind: 'chip'; raw: string; label: string };
 
 const WIKI_ARTICLE_URL = 'https://fi.wikipedia.org/wiki/';
@@ -24,6 +24,7 @@ const TABLE_OPEN = '{|';
 const TABLE_CLOSE = '|}';
 const LINK_OPEN = '[[';
 const LINK_CLOSE = ']]';
+const SECTION_MARK = '#';
 
 // Sticky patterns: each is tried at the current position only.
 const REF_OPEN = /<ref(?=[\s>/])[^>]*>/iy;
@@ -99,6 +100,11 @@ function plainLabel(label: string): string {
   return decodeEntities(label.replace(LABEL_TAGS, ' ').replace(EMPHASIS_MARKS, '')).replace(SPACES, ' ').trim();
 }
 
+/** A page title or section name as it appears in a Wikipedia URL. */
+function urlPart(name: string): string {
+  return encodeURIComponent(name.trim().replace(SPACES, '_'));
+}
+
 function wikiLink(raw: string): Token {
   const [target, ...labelParts] = raw.slice(LINK_OPEN.length, -LINK_CLOSE.length).split('|');
   if (MEDIA_PREFIX.test(target.trim())) return { kind: 'chip', raw, label: IMAGE_LABEL };
@@ -107,23 +113,18 @@ function wikiLink(raw: string): Token {
   }
   const page = target.replace(/^:/, '').trim();
   const label = plainLabel(labelParts.join('|')) || page;
-  return { kind: 'link', raw, label, href: WIKI_ARTICLE_URL + encodeURI(page.replace(/ /g, '_')) };
+  const [title, ...sectionParts] = page.split(SECTION_MARK);
+  const section = sectionParts.join(SECTION_MARK);
+  // A link to a section of the same article ("[[#Tausta]]") names no page to open.
+  const href = title
+    ? WIKI_ARTICLE_URL + urlPart(title) + (section ? SECTION_MARK + urlPart(section) : '')
+    : null;
+  return { kind: 'link', raw, label, href };
 }
 
 function templateName(raw: string): string {
   const name = raw.slice(TEMPLATE_OPEN.length).split(/[|}\n]/)[0].trim();
   return name || TEMPLATE_LABEL;
-}
-
-/** A closer whose opener was cut off before this text: the label of what it closes, and its length. */
-function strayCloser(text: string, i: number): { label: string; length: number } | null {
-  const ref = matchAt(REF_CLOSE, text, i);
-  if (ref) return { label: REF_LABEL, length: ref[0].length };
-  if (text.startsWith(TEMPLATE_CLOSE, i)) return { label: TEMPLATE_LABEL, length: TEMPLATE_CLOSE.length };
-  if (text.startsWith(TABLE_CLOSE, i) && !text.startsWith(TEMPLATE_CLOSE, i + 1)) {
-    return { label: TABLE_LABEL, length: TABLE_CLOSE.length };
-  }
-  return null;
 }
 
 export function tokenize(text: string): Token[] {
@@ -142,14 +143,18 @@ export function tokenize(text: string): Token[] {
 
   while (i < text.length) {
     const atLineStart = i === 0 || text[i - 1] === '\n';
-    const stray = strayCloser(text, i);
     let match: RegExpExecArray | null;
 
-    if (stray) {
-      // Everything before a closer without an opener is the rest of that markup.
+    if ((match = matchAt(REF_CLOSE, text, i))) {
+      // Everything before a reference closer without an opener is the rest of that reference.
+      i += match[0].length;
       tokens.length = 0;
-      tokens.push({ kind: 'chip', raw: text.slice(0, i + stray.length), label: stray.label });
-      i += stray.length;
+      tokens.push({ kind: 'chip', raw: text.slice(0, i), label: REF_LABEL });
+    } else if (text.startsWith(TEMPLATE_CLOSE, i)) {
+      // The closer of a template or table opened before this text; the lines before it stay readable.
+      plain('hidden', TEMPLATE_CLOSE.length);
+    } else if (text.startsWith(TABLE_CLOSE, i) && !text.startsWith(TEMPLATE_CLOSE, i + 1)) {
+      plain('hidden', TABLE_CLOSE.length);
     } else if (text.startsWith(COMMENT_OPEN, i)) {
       const close = text.indexOf(COMMENT_CLOSE, i);
       chip(close < 0 ? close : close + COMMENT_CLOSE.length, COMMENT_LABEL);
