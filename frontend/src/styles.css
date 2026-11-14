@@ -76,6 +76,10 @@ h2 { font-size: 1.45em; margin: 22px 0 10px; padding-bottom: 3px; border-bottom:
 .card span { margin-top: 3px; font-size: 13px; color: var(--muted); }
 .card a { display: inline-block; margin-top: 3px; color: var(--blue); font-size: 13px; }
 
+.flag-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.flag-filters button { padding: 4px 8px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); color: var(--blue); cursor: pointer; font-size: 12px; }
+.flag-filters button:hover { background: var(--blue-soft); }
+.flag-filters button[aria-pressed="true"] { background: var(--blue); border-color: var(--blue); color: #fff; }
 .change-list { list-style: none; margin: 0; padding: 0; }
 .change-list li + li { border-top: 1px solid #eaecf0; }
 .change { padding: 11px 4px 10px 12px; border-left: 3px solid var(--line); }
