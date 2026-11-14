@@ -5,9 +5,19 @@ article between two dates, using the M dataset in `data/m/` (every saved version
 ~19.7k History of Finland articles, 2003–2026). Meant to be called by the website's
 Node backend.
 
+## Install
+
+Requires Python 3.10+. From the `mariadb/` folder:
+
+```sh
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r server/requirements.txt
+```
+
 ## Run
 
-Inside the flake dev shell, from this folder:
+From the `mariadb/` folder, with the venv active:
 
 ```sh
 uvicorn server.app:app --host 127.0.0.1 --port 8000
