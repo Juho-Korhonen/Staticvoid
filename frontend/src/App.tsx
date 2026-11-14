@@ -6,12 +6,12 @@ import Summary from './components/Summary';
 import ChangeList from './components/ChangeList';
 import { useComparison } from './hooks/useComparison';
 
-const ARTICLE_TITLE = 'Winter War';
+const ARTICLE_TITLE = 'Suomen sisällissota';
 
 export default function App() {
-  const [from, setFrom] = useState('2009-06-01');
-  const [to, setTo] = useState('2021-12-31');
-  const [range, setRange] = useState({ from: '2009-06-01', to: '2021-12-31' });
+  const [from, setFrom] = useState('2015-01-01');
+  const [to, setTo] = useState('2015-03-01');
+  const [range, setRange] = useState({ from: '2015-01-01', to: '2015-03-01' });
   const { data, loading, error } = useComparison(ARTICLE_TITLE, range.from, range.to);
 
   function updateRange(nextFrom: string, nextTo: string) {
