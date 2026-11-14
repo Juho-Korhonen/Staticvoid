@@ -1,6 +1,6 @@
-"""HTTP API for the Node backend.
+"""HTTP API for the React frontend.
 
-Run from mariadb/:  uvicorn server.app:app --host 127.0.0.1 --port 8000
+Run from the repository root: uvicorn server.app:app --host 127.0.0.1 --port 8000
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from .changes import ChangesStore, NotFound, parse_when
+from .rhetoric import AnalysisError, analyze_changes
 
 store: ChangesStore | None = None
 
@@ -66,6 +67,7 @@ def changes(
     page_id: int | None = None,
     max_revisions: int = Query(200, ge=0, le=5000),
     context_lines: int = Query(2, ge=0, le=20),
+    analyze: bool = False,
 ):
     if title is None and page_id is None:
         raise HTTPException(400, "title or page_id required")
@@ -77,6 +79,25 @@ def changes(
         raise HTTPException(400, "start must be before end")
     try:
         pid = store.resolve_page(title=title, page_id=page_id)
-        return store.get_changes(pid, start_dt, end_dt, max_revisions, context_lines)
+        result = store.get_changes(pid, start_dt, end_dt, max_revisions, context_lines)
     except NotFound as e:
         raise HTTPException(404, str(e))
+    if analyze:
+        if not result["baseline"] or not result["final"]:
+            raise HTTPException(400, "Rhetoric analysis requires saved revisions at both endpoints.")
+        try:
+            result["rhetoric_analysis"] = analyze_changes(
+                result["title"], result["net_change"]["blocks"],
+                {"revisions": result["summary"]["revisions"], "editors": result["summary"]["editors"]},
+            )
+        except AnalysisError as exc:
+            raise HTTPException(exc.status_code, str(exc)) from None
+        before_id, after_id = result["baseline"]["rev_id"], result["final"]["rev_id"]
+        wiki = "https://fi.wikipedia.org/w/index.php"
+        # Cite actual dataset revision IDs; the model never invents source URLs.
+        result["rhetoric_analysis"]["sources"] = {
+            "before": f"{wiki}?oldid={before_id}",
+            "after": f"{wiki}?oldid={after_id}",
+            "diff": f"{wiki}?oldid={before_id}&diff={after_id}",
+        }
+    return result

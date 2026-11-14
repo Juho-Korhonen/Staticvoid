@@ -1,26 +1,26 @@
-import type { Change } from '../types';
+import { neutralityLabels, type Change, type Sources } from '../types';
 
-function describe(change: Change): string {
-  if (change.kind === 'added') return 'Sentence added';
-  if (change.kind === 'removed') return 'Sentence removed';
-  if (change.toneDelta > 0) return `More positive (+${change.toneDelta})`;
-  if (change.toneDelta < 0) return `More negative (${change.toneDelta})`;
-  return 'Reworded, same tone';
-}
-
-export default function ChangeItem({ change }: { change: Change }) {
-  const direction = change.toneDelta > 0 ? 'positive' : change.toneDelta < 0 ? 'negative' : '';
+export default function ChangeItem({ change, sources }: { change: Change; sources: Sources }) {
+  const direction = change.neutrality === 'more_neutral' ? 'positive' : change.neutrality === 'less_neutral' ? 'negative' : '';
 
   return (
     <article className={`change ${direction}`}>
-      <div className="change-copy">
-      {change.newText && <p><span className="change-label">After</span><span className="added">{change.newText}</span></p>}
-      {change.oldText && <p><span className="change-label">Before</span><span className="removed">{change.oldText}</span></p>}
+      <strong>{neutralityLabels[change.neutrality]}</strong>
+      <p className="change-explanation">{change.explanation}</p>
+      <div className="change-copy evidence">
+        {change.evidenceAfter && <p><a className="change-label" href={sources.after} target="_blank" rel="noreferrer">After</a><q>{change.evidenceAfter}</q></p>}
+        {change.evidenceBefore && <p><a className="change-label" href={sources.before} target="_blank" rel="noreferrer">Before</a><q>{change.evidenceBefore}</q></p>}
       </div>
-      <small>
-        {describe(change)}
-        {change.hedgeAdded && ' · hedge added'}
-      </small>
+      <details className="source-excerpts">
+        <summary>Wording and neutral alternative</summary>
+        <div className="change-copy">
+          {change.newText && <p><span className="change-label">After</span><span className="added">{change.newText}</span></p>}
+          {change.oldText && <p><span className="change-label">Before</span><span className="removed">{change.oldText}</span></p>}
+        </div>
+        {change.neutralWording && <p><strong>Suggested neutral wording:</strong> {change.neutralWording}</p>}
+        {change.textTruncated && <p className="reading-note">Excerpt shortened. Analysis covers only the text shown.</p>}
+        <a href={sources.diff} target="_blank" rel="noreferrer">View the original diff ↗</a>
+      </details>
     </article>
   );
 }
