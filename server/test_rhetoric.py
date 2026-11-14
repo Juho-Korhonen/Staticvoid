@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 from google.genai import errors
 
-from .changes import diff_texts
+from .diff import diff_texts
 from .rhetoric import AnalysisError, analyze_changes, evidence_passages, iter_analysis, prepare_changes, revision_changes
 
 

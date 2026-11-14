@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 import os
 import textwrap
+from collections import Counter
+from dataclasses import dataclass, field
+from http import HTTPStatus
 from pathlib import Path
 from typing import Literal
 
@@ -14,6 +17,8 @@ from google import genai
 from google.genai import errors, types
 from pydantic import BaseModel, Field, ValidationError
 
+from .wiki import revision_sources
+
 load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
 
 DEFAULT_MODEL = "gemini-3.5-flash-lite"
@@ -21,14 +26,20 @@ BATCH_SIZE = 12
 BATCH_CHARS = 24_000
 SEGMENT_CHARS = 6_000
 SEGMENT_OVERLAP = 200
+PASSAGE_WIDTH = 200
+MAX_OUTPUT_TOKENS = 8192
+REQUEST_TIMEOUT_MS = 60_000
+REQUEST_ATTEMPTS = 1  # failed batches are retried by splitting them instead
+SEVERITY_ORDER = ("high", "medium", "low", "none")
+_SIDES = (("before", "oldText", "evidenceBeforeId"), ("after", "newText", "evidenceAfterId"))
 
 
 class AnalysisError(Exception):
     """Only safe, actionable messages may cross the API boundary."""
 
-    def __init__(self, message: str, status_code: int = 502):
+    def __init__(self, message: str, status_code: int = HTTPStatus.BAD_GATEWAY):
         super().__init__(message)
-        self.status_code = status_code
+        self.status_code = int(status_code)
 
 
 class BatchError(AnalysisError):
@@ -82,19 +93,22 @@ solely from a segment boundary; use unclear when the local context is insufficie
 """
 
 
-def revision_sources(before_id: int | None, after_id: int | None) -> dict:
-    wiki = "https://fi.wikipedia.org/w/index.php"
-    return {
-        "before": f"{wiki}?oldid={before_id}" if before_id is not None else None,
-        "after": f"{wiki}?oldid={after_id}" if after_id is not None else None,
-        "diff": f"{wiki}?oldid={before_id}&diff={after_id}" if before_id is not None and after_id is not None else None,
-    }
+def _is_flagged(flags: list, neutrality: str) -> bool:
+    return bool(flags) or neutrality == "less_neutral"
+
+
+def _revision_id(change: dict) -> int | None:
+    return (change.get("revision") or {}).get("id")
+
+
+# ---- input preparation ------------------------------------------------
 
 
 def revision_changes(result: dict) -> list[dict]:
     """Flatten EVERY revision's blocks, retaining precise per-edit provenance."""
     if result["truncated"] or len(result["revisions"]) != result["summary"]["revisions"]:
-        raise AnalysisError("Analysis requires the complete revision history for this period.", 500)
+        raise AnalysisError("Analysis requires the complete revision history for this period.",
+                            HTTPStatus.INTERNAL_SERVER_ERROR)
     changes = []
     for revision in result["revisions"]:
         for block_index, block in enumerate(revision["blocks"]):
@@ -112,27 +126,30 @@ def revision_changes(result: dict) -> list[dict]:
 
 
 def evidence_passages(text: str | None) -> list[str]:
-    return textwrap.wrap(text or "", width=200, expand_tabs=False,
+    return textwrap.wrap(text or "", width=PASSAGE_WIDTH, expand_tabs=False,
                          replace_whitespace=False, drop_whitespace=False)
+
+
+def _segments(text: str | None) -> list[str | None]:
+    """Overlapping slices that together contain every character of `text`."""
+    if not text:
+        return [text]
+    return [text[max(0, i - SEGMENT_OVERLAP):i + SEGMENT_CHARS] for i in range(0, len(text), SEGMENT_CHARS)]
 
 
 def prepare_changes(changes: list[dict]) -> list[dict]:
     """Split long text without dropping a character; overlap preserves boundary context."""
     prepared = []
     for block_index, change in enumerate(changes):
-        sides = []
-        for key in ("oldText", "newText"):
-            text = change[key]
-            sides.append([text[max(0, i - SEGMENT_OVERLAP):i + SEGMENT_CHARS]
-                          for i in range(0, len(text), SEGMENT_CHARS)] if text else [text])
-        parts = max(map(len, sides))
-        for part in range(parts):
+        old_parts, new_parts = _segments(change["oldText"]), _segments(change["newText"])
+        count = max(len(old_parts), len(new_parts))
+        for part in range(count):
             prepared.append({
                 **change, "blockId": change.get("blockId", str(block_index)),
                 "changeIndex": len(prepared),
-                "oldText": sides[0][part] if part < len(sides[0]) else None,
-                "newText": sides[1][part] if part < len(sides[1]) else None,
-                "segmentIndex": part + 1, "segmentCount": parts, "textTruncated": False,
+                "oldText": old_parts[part] if part < len(old_parts) else None,
+                "newText": new_parts[part] if part < len(new_parts) else None,
+                "segmentIndex": part + 1, "segmentCount": count, "textTruncated": False,
             })
     return prepared
 
@@ -150,141 +167,226 @@ def batch_changes(changes: list[dict]):
         yield batch
 
 
-def analyze_batch(client, model: str, title: str, selected: list[dict], revision_context: dict | None) -> list[dict]:
-    passages = [{
+# ---- one Gemini request -----------------------------------------------
+
+
+def _passages(selected: list[dict]) -> list[dict]:
+    """Numbered evidence passages per change; the model may only cite these IDs."""
+    return [{
         f"{side}Passages": {f"{c['changeIndex']}-{side}-{i}": text
                             for i, text in enumerate(evidence_passages(c[key]))}
-        for side, key in (("before", "oldText"), ("after", "newText"))
+        for side, key, _ in _SIDES
     } for c in selected]
+
+
+def _request_schema(passages: list[dict]) -> dict:
+    schema = BatchAnalysis.model_json_schema()
+    # Array length constraints can make Gemini reject otherwise small schemas (400).
+    # Exact coverage is enforced in _validate using the returned change indices instead.
+    properties = schema["$defs"]["ChangeAnalysis"]["properties"]
+    for side, _, id_field in _SIDES:
+        ids = [key for p in passages for key in p[f"{side}Passages"]]
+        properties[id_field]["anyOf"] = ([{"type": "string", "enum": ids}] if ids else []) + [{"type": "null"}]
+    return schema
+
+
+def _request_body(title: str, selected: list[dict], passages: list[dict], revision_context: dict | None) -> str:
     inputs = [{"changeIndex": c["changeIndex"], "kind": c["kind"],
                "revision": c.get("revision"), "segmentIndex": c["segmentIndex"],
                "segmentCount": c["segmentCount"], **p} for c, p in zip(selected, passages)]
-    schema = BatchAnalysis.model_json_schema()
-    # Array length constraints can make Gemini reject otherwise small schemas (400).
-    # Exact coverage is enforced below using the returned change indices instead.
-    for side, field in (("before", "evidenceBeforeId"), ("after", "evidenceAfterId")):
-        ids = [key for p in passages for key in p[f"{side}Passages"]]
-        schema["$defs"]["ChangeAnalysis"]["properties"][field]["anyOf"] = (
-            ([{"type": "string", "enum": ids}] if ids else []) + [{"type": "null"}]
-        )
+    return json.dumps({"article": title, "revisionContext": revision_context, "changes": inputs}, ensure_ascii=False)
+
+
+def _validate(response_text: str | None, selected: list[dict], passages: list[dict]) -> list[dict]:
+    """Exactly one well-evidenced finding per supplied change, merged with its source."""
+    analysis = BatchAnalysis.model_validate_json(response_text or "")
+    expected = {c["changeIndex"] for c in selected}
+    indices = [item.changeIndex for item in analysis.changes]
+    if len(indices) != len(expected) or set(indices) != expected:
+        raise BatchError("Gemini returned an incomplete batch. Please try again.")
+    by_index = {item.changeIndex: item for item in analysis.changes}
+    output = []
+    for source, passage in zip(selected, passages):
+        item = by_index[source["changeIndex"]]
+        before, after = item.evidenceBeforeId, item.evidenceAfterId
+        if (before is not None and before not in passage["beforePassages"]) or \
+                (after is not None and after not in passage["afterPassages"]):
+            raise BatchError("Gemini referenced a missing source passage. Please try again.")
+        if _is_flagged(item.flags, item.neutrality) and before is None and after is None:
+            raise BatchError("Gemini flagged an edit without evidence. Please try again.")
+        output.append({
+            **source, **item.model_dump(exclude={"changeIndex", "evidenceBeforeId", "evidenceAfterId"}),
+            "evidenceBefore": passage["beforePassages"].get(before),
+            "evidenceAfter": passage["afterPassages"].get(after),
+        })
+    return output
+
+
+def _api_error(exc: errors.APIError) -> AnalysisError:
+    """A safe message for a Gemini API error, without SDK details or credentials."""
+    if exc.code == HTTPStatus.BAD_REQUEST:
+        if "api key" in str(exc.message).lower():
+            return AnalysisError("Gemini rejected the API key. Check the server's key and project access.",
+                                 HTTPStatus.SERVICE_UNAVAILABLE)
+        return BatchError("Gemini rejected the analysis request format (400). No complete review is available.")
+    if exc.code == HTTPStatus.TOO_MANY_REQUESTS:
+        return AnalysisError("Gemini quota or rate limit reached. Check your Google project quota and try later.",
+                             HTTPStatus.TOO_MANY_REQUESTS)
+    if exc.code in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
+        return AnalysisError("Gemini authentication failed. Check the server's API key and project access.",
+                             HTTPStatus.SERVICE_UNAVAILABLE)
+    if exc.code == HTTPStatus.NOT_FOUND:
+        return AnalysisError("Gemini model unavailable. Set GEMINI_MODEL to an available model.",
+                             HTTPStatus.SERVICE_UNAVAILABLE)
+    return AnalysisError("Gemini request failed. Check server configuration and try again.")
+
+
+def analyze_batch(client, model: str, title: str, selected: list[dict], revision_context: dict | None) -> list[dict]:
+    passages = _passages(selected)
     try:
         response = client.models.generate_content(
             model=model,
-            contents=json.dumps({"article": title, "revisionContext": revision_context, "changes": inputs}, ensure_ascii=False),
+            contents=_request_body(title, selected, passages, revision_context),
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION, response_mime_type="application/json",
-                response_json_schema=schema, max_output_tokens=8192,
+                response_json_schema=_request_schema(passages), max_output_tokens=MAX_OUTPUT_TOKENS,
             ),
         )
-        analysis = BatchAnalysis.model_validate_json(response.text or "")
-        expected = {c["changeIndex"] for c in selected}
-        indices = [item.changeIndex for item in analysis.changes]
-        if len(indices) != len(expected) or set(indices) != expected:
-            raise BatchError("Gemini returned an incomplete batch. Please try again.")
-        by_index = {item.changeIndex: item for item in analysis.changes}
-        output = []
-        for source, passage in zip(selected, passages):
-            item = by_index[source["changeIndex"]]
-            for passage_id, key in ((item.evidenceBeforeId, "beforePassages"), (item.evidenceAfterId, "afterPassages")):
-                if passage_id is not None and passage_id not in passage[key]:
-                    raise BatchError("Gemini referenced a missing source passage. Please try again.")
-            if (item.flags or item.neutrality == "less_neutral") and item.evidenceBeforeId is None and item.evidenceAfterId is None:
-                raise BatchError("Gemini flagged an edit without evidence. Please try again.")
-            output.append({
-                **source, **item.model_dump(exclude={"changeIndex", "evidenceBeforeId", "evidenceAfterId"}),
-                "evidenceBefore": passage["beforePassages"].get(item.evidenceBeforeId),
-                "evidenceAfter": passage["afterPassages"].get(item.evidenceAfterId),
-            })
-        return output
+        return _validate(response.text, selected, passages)
     except errors.APIError as exc:
-        if exc.code == 400:
-            if "api key" in str(exc.message).lower():
-                raise AnalysisError("Gemini rejected the API key. Check the server's key and project access.", 503) from None
-            raise BatchError("Gemini rejected the analysis request format (400). No complete review is available.") from None
-        if exc.code == 429:
-            raise AnalysisError("Gemini quota or rate limit reached. Check your Google project quota and try later.", 429) from None
-        if exc.code in (401, 403):
-            raise AnalysisError("Gemini authentication failed. Check the server's API key and project access.", 503) from None
-        if exc.code == 404:
-            raise AnalysisError("Gemini model unavailable. Set GEMINI_MODEL to an available model.", 503) from None
-        raise AnalysisError("Gemini request failed. Check server configuration and try again.") from None
+        raise _api_error(exc) from None
     except httpx.TimeoutException:
-        raise AnalysisError("Gemini timed out. Please try again.", 504) from None
+        raise AnalysisError("Gemini timed out. Please try again.", HTTPStatus.GATEWAY_TIMEOUT) from None
     except httpx.RequestError:
-        raise AnalysisError("Could not connect to Gemini. Check the server's network connection.", 503) from None
+        raise AnalysisError("Could not connect to Gemini. Check the server's network connection.",
+                            HTTPStatus.SERVICE_UNAVAILABLE) from None
     except (ValidationError, ValueError):
         raise BatchError("Gemini did not return valid structured analysis. Please try again.") from None
+
+
+# ---- whole review -----------------------------------------------------
+
+
+@dataclass
+class _Progress:
+    """Review coverage; a revision counts as reviewed once all of its passages are."""
+
+    prepared: list[dict]
+    total_blocks: int
+    total_revisions: int
+    batches: list[list[dict]]
+    reviewed: list[dict] = field(default_factory=list)
+    completed_batches: int = 0
+    pending: Counter = field(init=False)
+
+    def __post_init__(self):
+        self.pending = Counter(_revision_id(c) for c in self.prepared if _revision_id(c) is not None)
+
+    def record(self, findings: list[dict]) -> None:
+        self.reviewed.extend(findings)
+        for finding in findings:
+            if _revision_id(finding) is not None:
+                self.pending[_revision_id(finding)] -= 1
+        self.completed_batches += 1
+
+    def coverage(self) -> dict:
+        unfinished = sum(n > 0 for n in self.pending.values())
+        return {"reviewedChanges": len(self.reviewed), "totalChanges": len(self.prepared),
+                "totalBlocks": self.total_blocks, "reviewedRevisions": self.total_revisions - unfinished,
+                "totalRevisions": self.total_revisions, "completedBatches": self.completed_batches,
+                "totalBatches": len(self.batches)}
+
+    def event(self) -> dict:
+        return {"type": "progress", "stage": "analyzing", **self.coverage()}
+
+
+def _model_name() -> str:
+    return os.environ.get("GEMINI_MODEL", "").strip() or DEFAULT_MODEL
+
+
+def _client() -> genai.Client:
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not key:
+        raise AnalysisError("Set GEMINI_API_KEY in the server environment or root .env, then restart the server.",
+                            HTTPStatus.SERVICE_UNAVAILABLE)
+    return genai.Client(api_key=key, vertexai=False, http_options=types.HttpOptions(
+        timeout=REQUEST_TIMEOUT_MS, retry_options=types.HttpRetryOptions(attempts=REQUEST_ATTEMPTS),
+    ))
+
+
+def _review_batches(client, model: str, title: str, revision_context: dict | None, progress: _Progress):
+    """Review every batch; a rejected batch is split in half until single passages fail."""
+    batches = progress.batches
+    index = 0
+    while index < len(batches):
+        batch = batches[index]
+        try:
+            findings = analyze_batch(client, model, title, batch, revision_context)
+        except AnalysisError as exc:
+            if isinstance(exc, BatchError) and len(batch) > 1:
+                middle = len(batch) // 2
+                batches[index:index + 1] = [batch[:middle], batch[middle:]]
+                yield progress.event()
+                continue
+            raise AnalysisError(
+                f"Analysis incomplete: {len(progress.reviewed)}/{len(progress.prepared)} passages reviewed. {exc}",
+                exc.status_code,
+            ) from None
+        progress.record(findings)
+        index += 1
+        yield progress.event()
+
+
+def _overall_neutrality(reviewed: list[dict]) -> str:
+    directions = {c["neutrality"] for c in reviewed}
+    if {"more_neutral", "less_neutral"} <= directions:
+        return "mixed"
+    for direction in ("less_neutral", "more_neutral", "unclear"):
+        if direction in directions:
+            return direction
+    return "unchanged"
+
+
+def _summary_text(reviewed: list[dict], flagged: list[dict]) -> str:
+    if flagged:
+        return (f"{len(flagged)} of {len(reviewed)} reviewed passages were flagged for possible vandalism "
+                f"or perception-shaping. {flagged[0]['explanation']}")
+    if reviewed:
+        return "No supported warning signs were flagged in the inspected edits."
+    return "No text changes were found in the saved revisions for this period."
+
+
+def _overall_agenda(flagged: list[dict]) -> str | None:
+    agendas = list(dict.fromkeys(c["possibleAgenda"] for c in flagged if c["possibleAgenda"]))
+    if len(agendas) > 1:
+        return "Different possible framing goals appear; see the flagged revisions."
+    return agendas[0] if agendas else None
+
+
+def _final_analysis(progress: _Progress, model: str | None) -> dict:
+    reviewed = progress.reviewed
+    flagged = sorted((c for c in reviewed if _is_flagged(c["flags"], c["neutrality"])),
+                     key=lambda c: SEVERITY_ORDER.index(c["severity"]))
+    return {
+        "summary": _summary_text(reviewed, flagged), "overallNeutrality": _overall_neutrality(reviewed),
+        "possibleAgenda": _overall_agenda(flagged),
+        "model": model, "partial": False, "totalChanges": len(progress.prepared),
+        "flaggedChanges": len(flagged), "coverage": progress.coverage(), "changes": reviewed,
+    }
 
 
 def iter_analysis(title: str, changes: list[dict], revision_context: dict | None = None):
     """Progress events followed by one complete result; failures never imply full coverage."""
     prepared = prepare_changes(changes)
-    batches = list(batch_changes(prepared))
-    reviewed = []
-    total_revisions = (revision_context or {}).get("revisions", 0)
-    remaining = {}
-    for change in prepared:
-        revision_id = change.get("revision", {}).get("id")
-        if revision_id is not None:
-            remaining[revision_id] = remaining.get(revision_id, 0) + 1
-    completed_batches = 0
-
-    def coverage():
-        return {"reviewedChanges": len(reviewed), "totalChanges": len(prepared),
-                "totalBlocks": len(changes), "reviewedRevisions": total_revisions - sum(n > 0 for n in remaining.values()),
-                "totalRevisions": total_revisions, "completedBatches": completed_batches, "totalBatches": len(batches)}
-
-    yield {"type": "progress", "stage": "analyzing", **coverage()}
+    progress = _Progress(prepared, len(changes), (revision_context or {}).get("revisions", 0),
+                         list(batch_changes(prepared)))
+    yield progress.event()
     model = None
     if prepared:
-        key = os.environ.get("GEMINI_API_KEY", "").strip()
-        if not key:
-            raise AnalysisError("Set GEMINI_API_KEY in the server environment or root .env, then restart the server.", 503)
-        model = os.environ.get("GEMINI_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
-        with genai.Client(api_key=key, vertexai=False, http_options=types.HttpOptions(
-            timeout=60_000, retry_options=types.HttpRetryOptions(attempts=1),
-        )) as client:
-            batch_index = 0
-            while batch_index < len(batches):
-                batch = batches[batch_index]
-                try:
-                    findings = analyze_batch(client, model, title, batch, revision_context)
-                except BatchError as exc:
-                    if len(batch) > 1:
-                        middle = len(batch) // 2
-                        batches[batch_index:batch_index + 1] = [batch[:middle], batch[middle:]]
-                        yield {"type": "progress", "stage": "analyzing", **coverage()}
-                        continue
-                    raise AnalysisError(f"Analysis incomplete: {len(reviewed)}/{len(prepared)} passages reviewed. {exc}", exc.status_code) from None
-                except AnalysisError as exc:
-                    raise AnalysisError(f"Analysis incomplete: {len(reviewed)}/{len(prepared)} passages reviewed. {exc}", exc.status_code) from None
-                reviewed.extend(findings)
-                for finding in findings:
-                    revision_id = finding.get("revision", {}).get("id")
-                    if revision_id is not None:
-                        remaining[revision_id] -= 1
-                completed_batches += 1
-                batch_index += 1
-                yield {"type": "progress", "stage": "analyzing", **coverage()}
-
-    flagged = [c for c in reviewed if c["flags"] or c["neutrality"] == "less_neutral"]
-    severity = {"high": 0, "medium": 1, "low": 2, "none": 3}
-    flagged.sort(key=lambda c: severity[c["severity"]])
-    directions = {c["neutrality"] for c in reviewed}
-    overall = ("mixed" if {"more_neutral", "less_neutral"} <= directions else
-               "less_neutral" if "less_neutral" in directions else
-               "more_neutral" if "more_neutral" in directions else
-               "unclear" if "unclear" in directions else "unchanged")
-    agendas = list(dict.fromkeys(c["possibleAgenda"] for c in flagged if c["possibleAgenda"]))
-    summary = (f"{len(flagged)} of {len(reviewed)} reviewed passages were flagged for possible vandalism or perception-shaping. " + flagged[0]["explanation"] if flagged else
-               "No supported warning signs were flagged in the inspected edits." if reviewed else
-               "No text changes were found in the saved revisions for this period.")
-    yield {"type": "complete", "analysis": {
-        "summary": summary, "overallNeutrality": overall,
-        "possibleAgenda": agendas[0] if len(agendas) == 1 else "Different possible framing goals appear; see the flagged revisions." if agendas else None,
-        "model": model, "partial": False, "totalChanges": len(prepared),
-        "flaggedChanges": len(flagged), "coverage": coverage(), "changes": reviewed,
-    }}
+        model = _model_name()
+        with _client() as client:
+            yield from _review_batches(client, model, title, revision_context, progress)
+    yield {"type": "complete", "analysis": _final_analysis(progress, model)}
 
 
 def analyze_changes(title: str, changes: list[dict], revision_context: dict | None = None) -> dict:
