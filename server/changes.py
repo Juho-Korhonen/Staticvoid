@@ -99,6 +99,71 @@ def diff_texts(old: str, new: str, context_lines: int = 2) -> dict:
     return {"added": added, "removed": removed, "word_changes": words, "unified_diff": unified}
 
 
+_QUERY_TERM = re.compile(r'"([^"]+)"|(\S+)')
+MAX_TERMS = 10
+SNIPPET_CHARS = 120  # of context on each side of the first hit
+
+
+def parse_terms(q: str) -> list[str]:
+    """Search query -> lowercase terms; quoted phrases stay one term."""
+    out: list[str] = []
+    for phrase, word in _QUERY_TERM.findall(q):
+        t = " ".join((phrase or word.strip('"')).split()).lower()
+        if t and t not in out:
+            out.append(t)
+    return out[:MAX_TERMS]
+
+
+def plain_text(wikitext: str) -> str:
+    """Rough wikitext -> readable text, good enough for search snippets."""
+    s = re.sub(r"<!--.*?-->", "", wikitext, flags=re.S)
+    s = re.sub(r"<ref[^>/]*/>|<ref[^>]*>.*?</ref>", "", s, flags=re.S | re.I)
+    for _ in range(5):  # templates nest; strip the innermost ones repeatedly
+        s, n = re.subn(r"\{\{[^{}]*\}\}", "", s)
+        if not n:
+            break
+    s = re.sub(r"\{\|.*?\|\}", "", s, flags=re.S)  # tables
+    s = re.sub(r"\[\[(?:Tiedosto|Kuva|File|Image|Luokka|Category):[^\[\]]*(?:\[\[[^\]]*\]\][^\[\]]*)*\]\]", "", s, flags=re.I)
+    s = re.sub(r"\[\[([^\]|]*\|)?([^\]]*)\]\]", r"\2", s)  # [[target|label]] -> label
+    s = re.sub(r"\[https?://\S+\s*([^\]]*)\]", r"\1", s)  # [url label] -> label
+    s = re.sub(r"<[^>]+>", "", s)
+    s = re.sub(r"'{2,}|^=+\s*|\s*=+$", "", s, flags=re.M)
+    return " ".join(s.split())
+
+
+def snippet(wikitext: str, terms: list[str]) -> dict:
+    """Text around the first hit of any term, with the hits' [start, end) offsets in it."""
+    text = plain_text(wikitext)
+    low = text.lower()
+    found = [i for i in (low.find(t) for t in terms) if i >= 0]
+    if not found:  # hit only inside markup (template, ref, ...): fall back to raw text
+        text = " ".join(wikitext.split())
+        low = text.lower()
+        found = [i for i in (low.find(t) for t in terms) if i >= 0]
+    first = min(found) if found else 0
+    a = max(0, first - SNIPPET_CHARS)
+    b = min(len(text), first + SNIPPET_CHARS)
+    # Widen to word boundaries.
+    while a > 0 and not text[a - 1].isspace():
+        a -= 1
+    while b < len(text) and not text[b].isspace():
+        b += 1
+    lead = "…" if a > 0 else ""
+    piece = text[a:b]
+    lp = piece.lower()
+    matches = []
+    for t in terms:
+        i = lp.find(t)
+        while i >= 0:
+            matches.append([len(lead) + i, len(lead) + i + len(t)])
+            i = lp.find(t, i + len(t))
+    matches.sort()
+    return {
+        "text": lead + piece + ("…" if b < len(text) else ""),
+        "matches": matches,  # [start, end) character offsets into "text"
+    }
+
+
 class ChangesStore:
     def __init__(self, data_dir: str | Path | None = None):
         data_dir = Path(data_dir or os.environ.get("DATA_DIR") or DEFAULT_DATA_DIR)
@@ -129,6 +194,27 @@ class ChangesStore:
             FROM versions v GROUP BY v.page_id
             """
         )
+        # Text of each page's latest version, for full-text search (~19.7k rows, ~135 MB).
+        # Building it scans all 12 GB of text; DuckDB's memory for that grows with the
+        # thread count (≈2.6 GB extra kept at 16 threads, ≈0.7 GB at 4), so cap it here.
+        threads = self.con.execute("SELECT current_setting('threads')").fetchone()[0]
+        self.con.execute(f"SET threads={min(threads, 4)}")
+        self._build_latest()
+        self.con.execute(f"SET threads={threads}")
+
+    def _build_latest(self) -> None:
+        self.con.execute(
+            """
+            CREATE TABLE latest AS
+            WITH last AS (
+                SELECT page_id, max_by(rev_id, (timestamp, rev_id)) AS rev_id
+                FROM versions GROUP BY page_id
+            )
+            SELECT v.page_id, v.rev_id, coalesce(v.text, '') AS text,
+                   regexp_matches(coalesce(v.text, ''), '^\\s*#(ohjaus|redirect)', 'i') AS is_redirect
+            FROM versions v SEMI JOIN last ON v.page_id = last.page_id AND v.rev_id = last.rev_id
+            """
+        )
 
     def _cursor(self) -> duckdb.DuckDBPyConnection:
         # A cursor per call: DuckDB connections are not safe to share across threads.
@@ -154,6 +240,61 @@ class ChangesStore:
             {"q": q, "limit": limit},
         ).fetchall()
         return [{"page_id": r[0], "title": r[1], "n_versions": r[2]} for r in rows]
+
+    def search_text(self, q: str, limit: int = 20, offset: int = 0) -> dict:
+        """Articles whose current text (or title) contains every term of `q`.
+
+        Case-insensitive substring match; `"double quotes"` keep a phrase together.
+        Ranked by how many terms are in the title, then by number of occurrences.
+        """
+        terms = parse_terms(q)
+        if not terms:
+            return {"query": q, "terms": [], "total": 0, "results": []}
+        params: dict = {"limit": limit, "offset": offset}
+        where, hits, title_hits = [], [], []
+        for i, t in enumerate(terms):
+            params[f"t{i}"] = t
+            where.append(f"(contains(lt, $t{i}) OR contains(ltitle, $t{i}))")
+            hits.append(f"(strlen(lt) - strlen(replace(lt, $t{i}, ''))) // strlen($t{i})")
+            title_hits.append(f"contains(ltitle, $t{i})::INT")
+        cur = self._cursor()
+        rows = cur.execute(
+            f"""
+            WITH m AS (
+                SELECT l.page_id, p.title, p.n_versions, p.last_edit, l.rev_id, l.text,
+                       lower(l.text) AS lt, lower(p.title) AS ltitle
+                FROM latest l JOIN pages p USING (page_id)
+                WHERE NOT l.is_redirect
+            )
+            SELECT page_id, title, n_versions, last_edit, rev_id, text,
+                   {" + ".join(hits)} AS hits,
+                   {" + ".join(title_hits)} AS title_hits,
+                   count(*) OVER () AS total
+            FROM m
+            WHERE {" AND ".join(where)}
+            ORDER BY title_hits DESC, hits DESC, page_id
+            LIMIT $limit OFFSET $offset
+            """,
+            params,
+        ).fetchall()
+        return {
+            "query": q,
+            "terms": terms,
+            "total": rows[0][8] if rows else 0,
+            "results": [
+                {
+                    "page_id": r[0],
+                    "title": r[1],
+                    "n_versions": r[2],
+                    "last_edit": iso(r[3]),
+                    "rev_id": r[4],
+                    "hits": r[6],
+                    "snippet": snippet(r[5], terms),
+                    "url": f"https://fi.wikipedia.org/w/index.php?curid={r[0]}",
+                }
+                for r in rows
+            ],
+        }
 
     def resolve_page(self, title: str | None = None, page_id: int | None = None) -> int:
         cur = self._cursor()

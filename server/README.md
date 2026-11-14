@@ -2,8 +2,8 @@
 
 Python (FastAPI + DuckDB) service that tells what changed in a Finnish Wikipedia
 article between two dates, using the M dataset in `data/m/` (every saved version of
-~19.7k History of Finland articles, 2003–2026). Meant to be called by the website's
-Node backend.
+~19.7k History of Finland articles, 2003–2026). The frontend (`frontend/`) calls it
+through the Vite proxy: `/api/*` is forwarded to `http://127.0.0.1:8000/*`.
 
 ## Install
 
@@ -34,8 +34,13 @@ From the `mariadb/` folder (no need to activate the venv):
 
 Windows: `.venv\Scripts\uvicorn server.app:app --host 127.0.0.1 --port 8000`
 
-Startup takes a few seconds (builds a title index). `DATA_DIR` overrides the Parquet folder.
+Startup takes a few seconds: it builds a title index and loads the current text of every
+article for search. Expect the server to use about 1–1.5 GB of RAM. `DATA_DIR` overrides the Parquet folder.
 Interactive docs: http://127.0.0.1:8000/docs
+
+`CORS_ORIGINS` is **deprecated** and off by default: the frontend reaches this service
+through the Vite proxy (see below), so no cross-origin calls happen. Set it to a
+comma-separated list of origins only if a page on another origin must call the API directly.
 
 ## Endpoints
 
@@ -43,7 +48,42 @@ Interactive docs: http://127.0.0.1:8000/docs
 |---|---|
 | `GET /health` | `{"status":"ok"}` |
 | `GET /pages/search?q=sisällissota&limit=20` | `[{page_id, title, n_versions}]`, matches any title the page has had |
+| `GET /pages/search_text?q=mannerheim talvisota&limit=20&offset=0` | Full-text search of the articles' current text (see below) |
 | `GET /changes?title=…` or `?page_id=…`, plus `&start=…&end=…` | All changes in `[start, end)` as a single JSON object |
+
+`/pages/search_text` parameters:
+- `q`: words that must **all** appear, case-insensitive. Terms match as substrings, which helps
+  with Finnish inflection: `talviso` finds both `talvisota` and `talvisodan`.
+  `"double quotes"` keep a phrase together. Up to 10 terms.
+- `limit` (default 20, max 100) and `offset` (default 0) for paging.
+
+Searches the latest version of each article (redirect pages are skipped), so text that was
+removed earlier is not found; use `/changes` for history. Ranked by how many terms are in the
+title, then by how often the terms occur. About 0.2–0.6 s per query.
+
+```jsonc
+{
+  "query": "mannerheim talvisota",
+  "terms": ["mannerheim", "talvisota"],
+  "total": 272,                       // all matches; "results" is one page of them
+  "results": [
+    {
+      "page_id": 1256, "title": "Talvisota", "n_versions": 2143, "last_edit": "...Z",
+      "rev_id": 24273471,            // the version that was searched (the latest)
+      "hits": 109,                    // occurrences of all terms in the text
+      "snippet": {
+        "text": "Talvisota käytiin Suomen ja Neuvostoliiton välillä 30. marraskuuta 1939 – …",
+        "matches": [[0, 9]]           // [start, end) character offsets of hits in "text", for highlighting
+      },
+      "url": "https://fi.wikipedia.org/w/index.php?curid=1256"
+    }
+  ]
+}
+```
+
+The snippet is the readable text around the first hit, with links, templates and references
+stripped. If a term only occurs inside markup (for example an infobox), the snippet shows raw
+wikitext instead.
 
 `/changes` parameters:
 - `start`, `end`: ISO date or datetime (`2015-01-01`, `2015-01-01T12:00:00+02:00`). Times without a timezone are UTC. `end` is exclusive.
@@ -51,7 +91,8 @@ Interactive docs: http://127.0.0.1:8000/docs
 - `max_revisions` (default 200): keep only the newest N revisions in the range; `truncated: true` when cut.
 - `context_lines` (default 2): context in `unified_diff`.
 
-Errors: `400` (bad or missing params, start ≥ end), `404` (unknown article).
+Errors: `422` (missing or out-of-range params), `400` (bad date, start ≥ end, neither
+`title` nor `page_id`), `404` (unknown article).
 
 ## Response
 
@@ -87,11 +128,15 @@ Errors: `400` (bad or missing params, start ≥ end), `404` (unknown article).
 `word_changes` is usually the most useful part for reviewing an edit, because a wikitext
 paragraph is one long line.
 
-## From Node
+## From the frontend
+
+Run this service and `npm run dev` in `frontend/`, then call the
+API under `/api` on the frontend's own origin. Vite strips the `/api` prefix and forwards the
+request to port 8000, so there is no CORS to deal with.
 
 ```js
 const qs = new URLSearchParams({ title: "Suomen sisällissota", start: "2015-01-01", end: "2015-03-01" });
-const res = await fetch(`http://127.0.0.1:8000/changes?${qs}`);
+const res = await fetch(`/api/changes?${qs}`);
 if (!res.ok) throw new Error((await res.json()).detail);
 const changes = await res.json();
 ```

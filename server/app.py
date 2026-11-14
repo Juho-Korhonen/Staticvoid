@@ -25,16 +25,18 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Article changes", lifespan=lifespan)
 
-# Let the Vite frontend (dev :5173, preview :4173) call the API from the browser.
-# Override with a comma-separated list, e.g. CORS_ORIGINS="https://example.org".
-_default_origins = [f"http://{h}:{p}" for h in ("localhost", "127.0.0.1") for p in (5173, 4173)]
-_env_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_env_origins or _default_origins,
-    allow_methods=["GET"],
-    allow_headers=["*"],
-)
+# DEPRECATED: CORS. The Vite dev/preview server proxies /api to this service, so the
+# browser never makes a cross-origin call. Off by default; set CORS_ORIGINS to a
+# comma-separated list (e.g. "https://example.org") only if a page on another origin
+# must call this service directly. Will be removed.
+_cors_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_methods=["GET"],
+        allow_headers=["*"],
+    )
 
 
 @app.get("/health")
@@ -45,6 +47,15 @@ def health():
 @app.get("/pages/search")
 def search(q: str = Query(..., min_length=1), limit: int = Query(20, ge=1, le=200)):
     return store.search(q, limit)
+
+
+@app.get("/pages/search_text")
+def search_text(
+    q: str = Query(..., min_length=1, max_length=500),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    return store.search_text(q, limit, offset)
 
 
 @app.get("/changes")
