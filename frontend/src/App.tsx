@@ -5,6 +5,7 @@ import DateRangePicker from './components/DateRangePicker';
 import ReviewProgress from './components/ReviewProgress';
 import RevisionCards from './components/RevisionCards';
 import Summary from './components/Summary';
+import ReviewHistory from './components/ReviewHistory';
 import ChangeList from './components/ChangeList';
 import { useComparison } from './hooks/useComparison';
 
@@ -82,6 +83,7 @@ export default function App() {
           <div aria-live="polite">
             <RevisionCards from={data.from} to={data.to} />
             <Summary comparison={data} />
+            <ReviewHistory changes={data.analysis.changes} from={search.from} to={search.to} />
             <details className="remaining-changes">
               <summary>View flagged edits and the full review</summary>
               <h2 id="changes-heading">Evidence from the revisions</h2>
