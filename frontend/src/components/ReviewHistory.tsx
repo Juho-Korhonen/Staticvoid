@@ -33,12 +33,12 @@ export default function ReviewHistory({ changes, from, to }: { changes: Change[]
 
   return (
     <section className="review-history" aria-labelledby={`${id}-heading`}>
-      <h2 id={`${id}-heading`}>Flagged edit history</h2>
+      <h2 id={`${id}-heading`}>Suspicious edit history</h2>
       {totalEdits === 0 ? (
-        <p className="message">No dated flagged edits in this period.</p>
+        <p className="message">No dated suspicious edits in this period.</p>
       ) : (
         <>
-          <p className="reading-note">{totalEdits} flagged edits · Grouped by {grouping}. Select categories to show or hide their lines.</p>
+          <p className="reading-note">{totalEdits} suspicious edits · Grouped by {grouping}. Select categories to show or hide their lines.</p>
           <div className="history-legend" role="group" aria-label="Chart categories">
             {categories.map((category) => (
               <button key={category} type="button" aria-pressed={!hidden.includes(category)}
@@ -50,9 +50,9 @@ export default function ReviewHistory({ changes, from, to }: { changes: Change[]
           </div>
           <div className="history-plot">
             <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-labelledby={`${id}-title ${id}-description`}>
-              <title id={`${id}-title`}>Flagged edits over time, by category</title>
-              <desc id={`${id}-description`}>Time on the horizontal axis; number of distinct flagged edits per {grouping} on the vertical axis. Exact counts are available in the table below.</desc>
-              <text x={MARGIN.left} y={MARGIN.top / 2}>Flagged edits per {grouping}</text>
+              <title id={`${id}-title`}>Suspicious edits over time, by category</title>
+              <desc id={`${id}-description`}>Time on the horizontal axis; number of distinct suspicious edits per {grouping} on the vertical axis. Exact counts are available in the table below.</desc>
+              <text x={MARGIN.left} y={MARGIN.top / 2}>Suspicious edits per {grouping}</text>
               {ticks.map((tick) => (
                 <g key={tick}>
                   <line className="history-grid" x1={MARGIN.left} x2={WIDTH - MARGIN.right} y1={y(tick)} y2={y(tick)} />
@@ -80,7 +80,7 @@ export default function ReviewHistory({ changes, from, to }: { changes: Change[]
             <summary>View counts by period</summary>
             <div className="history-table">
               <table>
-                <caption>Flagged edits per category · {from} to {to} (end exclusive, UTC)</caption>
+                <caption>Suspicious edits per category · {from} to {to} (end exclusive, UTC)</caption>
                 <thead><tr><th scope="col">Period</th>{categories.map((category) => <th key={category} scope="col">{categoryLabels[category]}</th>)}</tr></thead>
                 <tbody>{buckets.map((bucket, index) => (
                   <tr key={bucket.start}><th scope="row">{period(index)}</th>{categories.map((category) => <td key={category}>{bucket.counts[category] ?? 0}</td>)}</tr>
@@ -90,7 +90,7 @@ export default function ReviewHistory({ changes, from, to }: { changes: Change[]
           </details>
         </>
       )}
-      {undated > 0 && <p className="reading-note">{undated} flagged passages have no usable revision date and could not be plotted.</p>}
+      {undated > 0 && <p className="reading-note">{undated} suspicious passages have no usable revision date and could not be plotted.</p>}
     </section>
   );
 }

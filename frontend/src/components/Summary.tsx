@@ -9,7 +9,7 @@ export default function Summary({ comparison }: { comparison: Comparison }) {
   return (
     <section className="reading" aria-label="Gemini reading">
       <h2>{analysis.flaggedChanges > 0 ? `${analysis.flaggedChanges} suspicious ${analysis.flaggedChanges === 1 ? 'edit' : 'edits'} found` : neutralityLabels[analysis.overallNeutrality]}</h2>
-      <p><strong>Possible agenda (inferred):</strong> {analysis.possibleAgenda ?? 'No agenda was established from the inspected wording.'}</p>
+      <p><strong>Possible agenda:</strong> {analysis.possibleAgenda ?? 'No agenda was established from the inspected wording.'}</p>
       <p className="reading-note">{revisionCount} revisions by {editorCount} editors reviewed. Flags need checking and don’t show intent and AI can make mistakes.</p>
       <nav className="source-links" aria-label="Wikipedia sources">
         <span>Sources:</span>

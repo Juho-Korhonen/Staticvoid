@@ -81,9 +81,12 @@ export default function App() {
         {data && !loading && (
           <div aria-live="polite">
             <Summary comparison={data} />
-            <ReviewHistory changes={data.analysis.changes} from={search.from} to={search.to} />
             <details className="remaining-changes">
-              <summary>View flagged edits and the full review</summary>
+              <summary>View suspicious edit history</summary>
+              <ReviewHistory changes={data.analysis.changes} from={search.from} to={search.to} />
+            </details>
+            <details className="remaining-changes">
+              <summary>View suspicious edits and the full review</summary>
               <h2 id="changes-heading">Evidence from the revisions</h2>
               <ChangeList analysis={data.analysis} />
             </details>

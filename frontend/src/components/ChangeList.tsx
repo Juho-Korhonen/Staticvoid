@@ -25,8 +25,8 @@ export default function ChangeList({ analysis }: { analysis: Analysis }) {
     <>
       {flagged.length > 0 ? (
         <>
-          <div className="flag-filters" role="group" aria-label="Filter flagged changes">
-            <button type="button" aria-pressed={selected === 'all'} onClick={() => setCategory('all')}>All flagged ({flagged.length})</button>
+          <div className="flag-filters" role="group" aria-label="Filter suspicious edits">
+            <button type="button" aria-pressed={selected === 'all'} onClick={() => setCategory('all')}>All suspicious ({flagged.length})</button>
             {categories.map((value) => (
               <button key={value} type="button" aria-pressed={selected === value} onClick={() => setCategory(value)}>
                 {categoryLabels[value]} ({flagged.filter((change) => change.category === value).length})
@@ -35,7 +35,7 @@ export default function ChangeList({ analysis }: { analysis: Analysis }) {
           </div>
           <ol className="change-list" aria-labelledby="changes-heading">{items(visible)}</ol>
         </>
-      ) : <p className="message">No warning signs were flagged. You can inspect every reviewed passage below.</p>}
+      ) : <p className="message">No suspicious edits were found. You can inspect every reviewed passage below.</p>}
       {other.length > 0 && (
         <details className="remaining-changes">
           <summary>Show {other.length} other reviewed passages</summary>
