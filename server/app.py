@@ -85,7 +85,7 @@ def search_text(
 def _parse_range(start: str, end: str) -> tuple[datetime, datetime]:
     try:
         start_dt, end_dt = parse_when(start), parse_when(end)
-    except ValueError as e:
+    except (ValueError, OverflowError) as e:  # OverflowError: year out of range after the UTC shift
         raise HTTPException(HTTPStatus.BAD_REQUEST, f"bad date: {e}") from None
     if start_dt >= end_dt:
         raise HTTPException(HTTPStatus.BAD_REQUEST, "start must be before end")

@@ -19,9 +19,15 @@ def _matcher(a, b) -> difflib.SequenceMatcher:
     return difflib.SequenceMatcher(None, a, b, autojunk=False)
 
 
-def word_changes(old_line: str, new_line: str) -> list[dict]:
-    """Word-level edits inside one changed paragraph (wikitext paragraphs are long lines)."""
+def word_changes(old_line: str, new_line: str, min_ratio: float = 0) -> list[dict]:
+    """Word-level edits inside one changed paragraph (wikitext paragraphs are long lines).
+
+    Nothing is returned for paragraphs less similar than `min_ratio`.
+    """
     a, b = _TOKEN.findall(old_line), _TOKEN.findall(new_line)
+    matcher = _matcher(a, b)
+    if matcher.ratio() < min_ratio:
+        return []
     return [
         {
             "before": "".join(a[i1:i2]),
@@ -30,7 +36,7 @@ def word_changes(old_line: str, new_line: str) -> list[dict]:
             + "[[CHANGE]]"
             + "".join(b[j2:j2 + WORD_CONTEXT]),
         }
-        for tag, i1, i2, j1, j2 in _matcher(a, b).get_opcodes()
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes()
         if tag != "equal"
     ]
 
@@ -39,8 +45,7 @@ def _paired_word_changes(old_lines: list[str], new_lines: list[str]) -> list[dic
     """Word changes of paragraphs that were edited in place."""
     out = []
     for old, new in zip(old_lines, new_lines):
-        if _matcher(old, new).quick_ratio() > SAME_PARAGRAPH_RATIO:
-            out.extend(word_changes(old, new))
+        out.extend(word_changes(old, new, SAME_PARAGRAPH_RATIO))
     return out
 
 

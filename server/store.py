@@ -91,14 +91,15 @@ def _revision_entry(m: dict, prev: dict | None, diff: dict, revert_of: int | Non
     }
 
 
-def _summary(in_range: list[dict], revisions: list[dict], baseline: dict | None, final: dict | None) -> dict:
+def _summary(in_range: list[dict], revisions: list[dict], baseline: dict | None, final: dict | None,
+             reverts: dict[int, int]) -> dict:
     return {
         "revisions": len(in_range),
         "returned": len(revisions),
         "editors": len({m["user"] for m in in_range}),
         "anonymous_edits": sum(1 for m in in_range if m["anonymous"]),
         "minor_edits": sum(1 for m in in_range if m["minor"]),
-        "reverts": sum(1 for r in revisions if r["is_revert"]),
+        "reverts": sum(1 for m in in_range if m["rev_id"] in reverts),
         "bytes_start": baseline["bytes"] if baseline else 0,
         "bytes_end": final["bytes"] if final else 0,
     }
@@ -174,10 +175,10 @@ class ChangesStore:
             SELECT page_id, title, n_versions FROM (
                 SELECT p.page_id, p.title, p.n_versions,
                        min(CASE WHEN lower(t.title) = lower($q) THEN 0
-                                WHEN lower(t.title) LIKE lower($q) || '%' THEN 1
+                                WHEN starts_with(lower(t.title), lower($q)) THEN 1
                                 ELSE 2 END) AS rank
                 FROM titles t JOIN pages p USING (page_id)
-                WHERE t.title ILIKE '%' || $q || '%'
+                WHERE contains(lower(t.title), lower($q))
                 GROUP BY ALL
             )
             ORDER BY rank, n_versions DESC, page_id
@@ -341,7 +342,7 @@ class ChangesStore:
             "range": {"start": iso(start), "end": iso(end)},
             "baseline": _brief(baseline),
             "final": _brief(final),
-            "summary": _summary(in_range, revisions, baseline, final),
+            "summary": _summary(in_range, revisions, baseline, final, reverts),
             "revisions": revisions,
             "net_change": diff_texts(text_of(baseline), text_of(final), context_lines, word_details),
             "truncated": truncated,
