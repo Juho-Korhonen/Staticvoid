@@ -4,7 +4,9 @@ function Card({ title, revision }: { title: string; revision: RevisionInfo | nul
   return (
     <div className="card">
       <strong>{title}</strong>
-      <span>{revision ? `Revision of ${revision.date}` : 'No revision existed on this date'}</span>
+      {revision ? <a href={`https://fi.wikipedia.org/w/index.php?oldid=${revision.revId}`} target="_blank" rel="noreferrer">
+        Revision of {revision.date} on Wikipedia ↗
+      </a> : <span>No revision existed on this date</span>}
     </div>
   );
 }

@@ -83,6 +83,8 @@ export interface Change {
 
 export interface RevisionInfo {
   date: string;
+  revId: number;
+  title: string;
 }
 
 export interface Comparison {

@@ -5,10 +5,12 @@ interface Props {
   onToChange: (date: string) => void;
 }
 
-const PRESETS = [
-  { label: 'Last year', from: '2020-01-01', to: '2021-12-31' },
-  { label: 'A decade apart', from: '2009-06-01', to: '2019-06-01' },
-];
+function addYears(date: string, years: number): string {
+  if (!date) return '';
+  const [year, month, day] = date.split('-').map(Number);
+  const lastDay = new Date(Date.UTC(year + years, month, 0)).getUTCDate();
+  return `${year + years}-${String(month).padStart(2, '0')}-${String(Math.min(day, lastDay)).padStart(2, '0')}`;
+}
 
 export default function DateRangePicker({ from, to, onFromChange, onToChange }: Props) {
   return (
@@ -23,7 +25,8 @@ export default function DateRangePicker({ from, to, onFromChange, onToChange }: 
       </div>
       <div className="presets" aria-label="Suggested date ranges">
         <span>Try:</span>
-        {PRESETS.map((preset) => <button key={preset.label} type="button" onClick={() => { onFromChange(preset.from); onToChange(preset.to); }}>{preset.label}</button>)}
+        <button type="button" disabled={!from} onClick={() => onToChange(addYears(from, 5))}>5 years apart</button>
+        <button type="button" disabled={!from} onClick={() => onToChange(addYears(from, 10))}>A decade apart</button>
       </div>
     </section>
   );

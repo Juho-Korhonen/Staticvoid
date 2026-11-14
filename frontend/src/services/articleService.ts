@@ -73,8 +73,8 @@ export async function compareArticle(
 
   return {
     article: result.title,
-    from: result.baseline ? { date: result.baseline.timestamp.slice(0, 10) } : null,
-    to: result.final ? { date: result.final.timestamp.slice(0, 10) } : null,
+    from: result.baseline ? { date: result.baseline.timestamp.slice(0, 10), revId: result.baseline.rev_id, title: result.baseline.title } : null,
+    to: result.final ? { date: result.final.timestamp.slice(0, 10), revId: result.final.rev_id, title: result.final.title } : null,
     changes,
   };
 }
