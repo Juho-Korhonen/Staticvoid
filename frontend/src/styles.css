@@ -100,7 +100,6 @@ h2 { font-size: 1.45em; margin: 22px 0 10px; padding-bottom: 3px; border-bottom:
 .source-links { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; margin-top: 12px; }
 .source-links a, .diff-link { color: var(--blue); }
 .change-explanation { margin: 5px 0 10px; color: var(--text); }
-.missing { color: var(--muted); font-style: italic; }
 .remaining-changes > summary { cursor: pointer; color: var(--blue); font-size: 12px; padding: 5px 0; }
 .remaining-changes { margin-top: 12px; }
 .result-views { display: flex; gap: 6px; margin-top: 8px; }
