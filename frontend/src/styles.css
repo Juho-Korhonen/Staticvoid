@@ -60,14 +60,10 @@ h2 { font-size: 1.45em; margin: 22px 0 10px; padding-bottom: 3px; border-bottom:
 .date-picker label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 700; }
 .date-picker input { min-width: 180px; padding: 5px 7px; border: 1px solid #c1bbca; border-radius: 2px; background: var(--bg); color: var(--text); font-size: 13px; }
 .date-picker input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-.presets { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 15px; color: var(--muted); font-size: 12px; }
-.presets button { padding: 3px 8px; border: 1px solid #c1bbca; border-radius: 2px; color: var(--blue); background: var(--bg); cursor: pointer; font-size: 12px; transition: background-color .16s ease, border-color .16s ease, transform .16s ease; }
-.presets button:hover { background: var(--blue-soft); border-color: var(--lavender-deep); transform: translateY(-1px); }
 .compare-button { padding: 7px 13px; border: 1px solid #776991; border-radius: 3px; color: #fff; background: #776991; font-weight: 700; cursor: pointer; transition: background-color .16s ease, transform .16s ease; }
 .compare-button:hover:not(:disabled) { background: #65587f; transform: translateY(-1px); }
 .compare-button:disabled { color: #74717b; background: #e3e0e9; border-color: #d2cedd; cursor: not-allowed; }
 .article-search-row { display: flex; align-items: center; gap: 8px; }
-.presets button:disabled { opacity: .55; cursor: not-allowed; }
 
 .flag-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .flag-filters button { padding: 4px 8px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); color: var(--blue); cursor: pointer; font-size: 12px; }
