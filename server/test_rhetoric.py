@@ -3,6 +3,7 @@
 import json
 import os
 import unittest
+from threading import Barrier, Event, Lock
 from types import SimpleNamespace
 from unittest.mock import patch
 from google.genai import errors
@@ -92,7 +93,7 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(result["coverage"]["completedBatches"], 3)
         self.assertFalse(result["partial"])
         sent = [json.loads(call.kwargs["contents"])["changes"] for call in self.generate.call_args_list]
-        self.assertEqual([c["changeIndex"] for batch in sent for c in batch], list(range(27)))
+        self.assertEqual(sorted(c["changeIndex"] for batch in sent for c in batch), list(range(27)))
         schema = self.generate.call_args.kwargs['config'].response_json_schema
         self.assertNotIn('minItems', schema['properties']['changes'])
         self.assertNotIn('maxItems', schema['properties']['changes'])
@@ -110,11 +111,67 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(result['coverage']['completedBatches'], result['coverage']['totalBatches'])
         self.assertGreater(result['coverage']['totalBatches'], 3)
 
-    def test_invalid_key_does_not_trigger_repeated_batch_requests(self):
+    def test_four_concurrent_requests_keep_coverage_and_result_order(self):
+        first_wave = Barrier(4)
+        release_first = Event()
+        lock = Lock()
+        active = peak = 0
+
+        def respond(**kwargs):
+            nonlocal active, peak
+            first_index = json.loads(kwargs['contents'])['changes'][0]['changeIndex']
+            with lock:
+                active += 1
+                peak = max(peak, active)
+            try:
+                if first_index < 48:
+                    first_wave.wait(timeout=5)
+                if first_index == 0:
+                    self.assertTrue(release_first.wait(timeout=5))
+                return self.respond_to_batch(**kwargs)
+            finally:
+                with lock:
+                    active -= 1
+
+        self.generate.side_effect = respond
+        source = [{**self.source[0], 'revision': {'id': i // 24}} for i in range(60)]
+        events = iter_analysis('Test', source, {'revisions': 3})
+        try:
+            self.assertEqual(next(events)['reviewedChanges'], 0)
+            # Other batches report progress even while the first request is blocked.
+            progress = next(events)
+            self.assertEqual(progress['reviewedChanges'], 12)
+            self.assertEqual(progress['reviewedRevisions'], 0)
+            release_first.set()
+            remaining = list(events)
+        finally:
+            release_first.set()
+            events.close()
+        result = remaining[-1]['analysis']
+        self.assertEqual(peak, 4)
+        self.assertEqual(self.generate.call_count, 5)
+        self.assertEqual([c['changeIndex'] for c in result['changes']], list(range(60)))
+        self.assertEqual(result['coverage']['reviewedRevisions'], 3)
+        self.assertEqual(result['coverage']['completedBatches'], 5)
+        counts = [e['reviewedChanges'] for e in remaining if e['type'] == 'progress']
+        self.assertEqual(counts, sorted(counts))
+        self.assertEqual(counts[-1], 60)
+
+    def test_invalid_key_stops_after_in_flight_requests(self):
         self.generate.side_effect = errors.ClientError(400, {'error': {'message': 'API key not valid.'}})
         with self.assertRaisesRegex(AnalysisError, 'rejected the API key'):
-            analyze_changes('Test', self.source * 27)
-        self.assertEqual(self.generate.call_count, 1)
+            analyze_changes('Test', self.source * 60)
+        self.assertGreaterEqual(self.generate.call_count, 1)
+        self.assertLessEqual(self.generate.call_count, 4)
+
+    def test_rate_limit_stops_without_retrying_or_reporting_completion(self):
+        self.generate.side_effect = errors.ClientError(429, {'error': {'message': 'Quota exceeded.'}})
+        events = []
+        with self.assertRaises(AnalysisError) as caught:
+            events.extend(iter_analysis('Test', self.source * 60))
+        self.assertEqual(caught.exception.status_code, 429)
+        self.assertLessEqual(self.generate.call_count, 4)
+        self.assertFalse(any(e['type'] == 'complete' for e in events))
 
     def test_long_changes_keep_the_tail_and_boundary_context(self):
         text = 'a' * 5995 + 'boundary evidence ' + 'b' * 8000 + 'tail evidence'
@@ -129,11 +186,11 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(len(result["changes"]), len(prepared))
 
     def test_failed_later_batch_never_reports_completion(self):
-        calls = 0
+        first_reviewed = Event()
         def respond(**kwargs):
-            nonlocal calls
-            calls += 1
-            if calls == 2:
+            first_index = json.loads(kwargs['contents'])['changes'][0]['changeIndex']
+            if first_index == 12:
+                self.assertTrue(first_reviewed.wait(timeout=5))
                 return SimpleNamespace(text='invalid JSON')
             return self.respond_to_batch(**kwargs)
         self.generate.side_effect = respond
@@ -141,16 +198,19 @@ class EvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(AnalysisError, '12/13 passages reviewed'):
             for event in iter_analysis('Test', self.source * 13):
                 events.append(event)
+                if event['reviewedChanges'] == 12:
+                    first_reviewed.set()
         self.assertFalse(any(e['type'] == 'complete' for e in events))
         self.assertEqual(events[-1]['reviewedChanges'], 12)
 
     def test_closing_review_stops_subsequent_batches(self):
         self.generate.side_effect = self.respond_to_batch
-        events = iter_analysis('Test', self.source * 25)
+        events = iter_analysis('Test', self.source * 60)
         next(events)
         next(events)
         events.close()
-        self.assertEqual(self.generate.call_count, 1)
+        self.assertGreaterEqual(self.generate.call_count, 1)
+        self.assertLessEqual(self.generate.call_count, 4)
 
     def test_reverted_edit_is_reviewed_even_when_net_diff_is_empty(self):
         good, bad = 'The policy was introduced.', 'The policy was introduced. Everyone here is an idiot!'

@@ -131,7 +131,9 @@ Positive tone does not imply neutrality. Explanations are English; suggested
 wording preserves the source language. JSON output is validated with Pydantic.
 
 There is no overall revision or text cutoff. Requests contain up to 12 passages
-and 24,000 source characters. Long blocks are split into 6,000-character segments
+and 24,000 source characters, with up to four requests running concurrently per review.
+Results retain revision order; cancellation or failure stops further requests from
+being scheduled, while in-flight requests may finish. Long blocks are split into 6,000-character segments
 with 200 characters of overlapping context; every segment is reviewed. The model
 must return an assessment for every supplied index before coverage advances.
 Rejected or invalid batches are retried in smaller groups, retaining every passage;

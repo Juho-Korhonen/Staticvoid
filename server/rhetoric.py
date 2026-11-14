@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import os
 import textwrap
-from collections import Counter
+from collections import Counter, deque
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from http import HTTPStatus
 from pathlib import Path
@@ -23,6 +24,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
 
 DEFAULT_MODEL = "gemini-3.5-flash-lite"
 BATCH_SIZE = 12
+BATCH_CONCURRENCY = 4
 BATCH_CHARS = 24_000
 SEGMENT_CHARS = 6_000
 SEGMENT_OVERLAP = 200
@@ -315,26 +317,41 @@ def _client() -> genai.Client:
 
 
 def _review_batches(client, model: str, title: str, revision_context: dict | None, progress: _Progress):
-    """Review every batch; a rejected batch is split in half until single passages fail."""
+    """Review up to four batches at once, splitting rejected batches without omissions."""
     batches = progress.batches
-    index = 0
-    while index < len(batches):
-        batch = batches[index]
+    queued = deque(range(len(batches)))
+    active = {}
+    with ThreadPoolExecutor(max_workers=BATCH_CONCURRENCY) as executor:
         try:
-            findings = analyze_batch(client, model, title, batch, revision_context)
-        except AnalysisError as exc:
-            if isinstance(exc, BatchError) and len(batch) > 1:
-                middle = len(batch) // 2
-                batches[index:index + 1] = [batch[:middle], batch[middle:]]
-                yield progress.event()
-                continue
-            raise AnalysisError(
-                f"Analysis incomplete: {len(progress.reviewed)}/{len(progress.prepared)} passages reviewed. {exc}",
-                exc.status_code,
-            ) from None
-        progress.record(findings)
-        index += 1
-        yield progress.event()
+            while queued or active:
+                while queued and len(active) < BATCH_CONCURRENCY:
+                    index = queued.popleft()
+                    future = executor.submit(analyze_batch, client, model, title, batches[index], revision_context)
+                    active[future] = index
+                finished, _ = wait(active, return_when=FIRST_COMPLETED)
+                for future in sorted(finished, key=active.get):
+                    index = active.pop(future)
+                    batch = batches[index]
+                    try:
+                        findings = future.result()
+                    except AnalysisError as exc:
+                        if isinstance(exc, BatchError) and len(batch) > 1:
+                            middle = len(batch) // 2
+                            batches[index] = batch[:middle]
+                            batches.append(batch[middle:])
+                            queued.extendleft((len(batches) - 1, index))
+                            yield progress.event()
+                            continue
+                        raise AnalysisError(
+                            f"Analysis incomplete: {len(progress.reviewed)}/{len(progress.prepared)} passages reviewed. {exc}",
+                            exc.status_code,
+                        ) from None
+                    progress.record(findings)
+                    yield progress.event()
+        finally:
+            # Stop scheduling on cancellation/error; let in-flight calls finish before closing the client.
+            for future in active:
+                future.cancel()
 
 
 def _overall_neutrality(reviewed: list[dict]) -> str:
@@ -364,7 +381,7 @@ def _overall_agenda(flagged: list[dict]) -> str | None:
 
 
 def _final_analysis(progress: _Progress, model: str | None) -> dict:
-    reviewed = progress.reviewed
+    reviewed = sorted(progress.reviewed, key=lambda c: c["changeIndex"])
     flagged = sorted((c for c in reviewed if _is_flagged(c["flags"], c["neutrality"])),
                      key=lambda c: SEVERITY_ORDER.index(c["severity"]))
     return {
