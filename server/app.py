@@ -5,9 +5,11 @@ Run from mariadb/:  uvicorn server.app:app --host 127.0.0.1 --port 8000
 
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 
 from .changes import ChangesStore, NotFound, parse_when
 
@@ -22,6 +24,17 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Article changes", lifespan=lifespan)
+
+# Let the Vite frontend (dev :5173, preview :4173) call the API from the browser.
+# Override with a comma-separated list, e.g. CORS_ORIGINS="https://example.org".
+_default_origins = [f"http://{h}:{p}" for h in ("localhost", "127.0.0.1") for p in (5173, 4173)]
+_env_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_env_origins or _default_origins,
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
