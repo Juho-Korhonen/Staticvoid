@@ -31,6 +31,8 @@ export function readableWikiText(source: string): string {
     .replace(/\[\[([^\[\]\n]*)$/g, linkLabel)
     .replace(/\[https?:\/\/[^\s\]]+\s+([^\]]+)\]/gi, '$1')
     .replace(/'{2,5}/g, '')
+    // Section headings: "=== Title ===" -> "Title".
+    .replace(/^[ \t]*={2,6}[ \t]*(.*?)[ \t]*={2,6}[ \t]*$/gm, '$1')
     .replace(/^\s*\|\s*/gm, '')
     .replace(/\s+/g, ' ')
     .trim();
