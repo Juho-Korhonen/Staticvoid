@@ -34,9 +34,13 @@ const EXTERNAL_LINK = /\[(https?:\/\/[^\s\]]+)[ \t]*([^\]\n]*)\]/y;
 const EMPHASIS = /'{2,}/y;
 const HEADING_OPEN = /={2,}[ \t]*/y;
 const HEADING_CLOSE = /[ \t]*={2,}[ \t]*(?=\n|$)/y;
+// A template parameter on its own line, as in infoboxes: "| nimi = ".
+const PARAMETER_NAME = /(?<=(?:^|\n)[ \t]*)\|[ \t]*[^|=\n[\]{}<>"']+=[ \t]*/y;
 const WHITESPACE = /\s+/y;
 const WORD = /[^\s<>[\]{}|'=]+/y;
 const EMPHASIS_MARKS = /'{2,}/g;
+const LABEL_TAGS = /<\/?[a-z][^<>]*>/gi;
+const SPACES = /\s+/g;
 
 // &nbsp; &#160; &#xA0;
 const ENTITY = /&(?:([a-z]+)|#(\d+)|#x([0-9a-f]+));/gi;
@@ -90,6 +94,11 @@ function tableEnd(text: string, start: number): number {
   return -1;
 }
 
+/** A link label as plain text: tags (often <br> in infoboxes), emphasis marks and entities resolved. */
+function plainLabel(label: string): string {
+  return decodeEntities(label.replace(LABEL_TAGS, ' ').replace(EMPHASIS_MARKS, '')).replace(SPACES, ' ').trim();
+}
+
 function wikiLink(raw: string): Token {
   const [target, ...labelParts] = raw.slice(LINK_OPEN.length, -LINK_CLOSE.length).split('|');
   if (MEDIA_PREFIX.test(target.trim())) return { kind: 'chip', raw, label: IMAGE_LABEL };
@@ -97,7 +106,7 @@ function wikiLink(raw: string): Token {
     return { kind: 'chip', raw, label: `${CATEGORY_LABEL}: ${target.trim().replace(CATEGORY_PREFIX, '')}` };
   }
   const page = target.replace(/^:/, '').trim();
-  const label = decodeEntities(labelParts.join('|').replace(EMPHASIS_MARKS, '').trim() || page);
+  const label = plainLabel(labelParts.join('|')) || page;
   return { kind: 'link', raw, label, href: WIKI_ARTICLE_URL + encodeURI(page.replace(/ /g, '_')) };
 }
 
@@ -162,13 +171,14 @@ export function tokenize(text: string): Token[] {
       tokens.push(wikiLink(text.slice(i, end)));
       i = end;
     } else if ((match = matchAt(EXTERNAL_LINK, text, i))) {
-      tokens.push({ kind: 'link', raw: match[0], label: decodeEntities(match[2].trim()) || match[1], href: match[1] });
+      tokens.push({ kind: 'link', raw: match[0], label: plainLabel(match[2]) || match[1], href: match[1] });
       i += match[0].length;
     } else if ((match = matchAt(LINE_BREAK, text, i))) plain('break', match[0].length);
     else if ((match = matchAt(HTML_TAG, text, i))) plain('hidden', match[0].length);
     else if ((match = matchAt(EMPHASIS, text, i))) plain('hidden', match[0].length);
     else if (atLineStart && (match = matchAt(HEADING_OPEN, text, i))) plain('hidden', match[0].length);
     else if ((match = matchAt(HEADING_CLOSE, text, i))) plain('hidden', match[0].length);
+    else if ((match = matchAt(PARAMETER_NAME, text, i))) plain('hidden', match[0].length);
     else if ((match = matchAt(WHITESPACE, text, i))) plain('text', match[0].length);
     else if ((match = matchAt(WORD, text, i))) plain('text', match[0].length);
     else plain('text', 1);
