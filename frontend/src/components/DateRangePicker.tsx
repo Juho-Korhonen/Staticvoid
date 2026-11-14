@@ -8,8 +8,9 @@ interface Props {
 function addYears(date: string, years: number): string {
   if (!date) return '';
   const [year, month, day] = date.split('-').map(Number);
-  const lastDay = new Date(Date.UTC(year + years, month, 0)).getUTCDate();
-  return `${year + years}-${String(month).padStart(2, '0')}-${String(Math.min(day, lastDay)).padStart(2, '0')}`;
+  const targetYear = year + years;
+  const lastDay = new Date(Date.UTC(targetYear, month, 0)).getUTCDate();
+  return `${targetYear}-${String(month).padStart(2, '0')}-${String(Math.min(day, lastDay)).padStart(2, '0')}`;
 }
 
 export default function DateRangePicker({ from, to, onFromChange, onToChange }: Props) {
@@ -25,8 +26,8 @@ export default function DateRangePicker({ from, to, onFromChange, onToChange }: 
       </div>
       <div className="presets" aria-label="Suggested date ranges">
         <span>Try:</span>
-        <button type="button" disabled={!from} onClick={() => onToChange(addYears(from, 5))}>5 years apart</button>
-        <button type="button" disabled={!from} onClick={() => onToChange(addYears(from, 10))}>A decade apart</button>
+        <button type="button" disabled={!from} onClick={() => onToChange(addYears(from, 5))}>5 years from start</button>
+        <button type="button" disabled={!from} onClick={() => onToChange(addYears(from, 10))}>10 years from start</button>
       </div>
     </section>
   );

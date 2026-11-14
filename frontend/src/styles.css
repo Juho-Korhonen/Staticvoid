@@ -46,6 +46,15 @@ h2 { font-size: 1.45em; margin: 22px 0 10px; padding-bottom: 3px; border-bottom:
 .subtitle { color: var(--muted); font-size: 12px; margin: 0 0 17px; }
 .article-title-field { display: flex; flex-direction: column; gap: 4px; margin: 0 0 8px; color: var(--muted); font-size: 12px; }
 .article-title-field input { max-width: 420px; padding: 6px 8px; border: 1px solid #c1bbca; border-radius: 2px; background: var(--bg); color: var(--text); font-size: 14px; }
+.article-search { display: flex; justify-content: flex-end; margin: 0 0 12px; }
+.article-search .article-title-field { margin: 0; }
+.article-search .article-title-field input { width: min(420px, 58vw); }
+.article-search-input-wrap { position: relative; display: inline-flex; }
+.article-suggestions { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; width: 100%; max-height: 300px; overflow-y: auto; margin: 0; padding: 4px 0; list-style: none; background: var(--bg); border: 1px solid var(--line); box-shadow: 0 5px 14px #302e3b22; }
+.article-suggestions li button { display: flex; flex-direction: column; align-items: flex-start; width: 100%; padding: 7px 10px; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.article-suggestions li button:hover, .article-suggestions li button:focus-visible { background: var(--blue-soft); }
+.article-suggestions small, .suggestions-status { color: var(--muted); font-size: 11px; }
+.suggestions-status { padding: 7px 10px; }
 .message { color: var(--muted); padding: 12px 14px; border-radius: 4px; }
 .validation, .error { background: #f8eee4; color: #694c3d; }
 .loading { background: var(--blue-soft); color: #45416d; }
