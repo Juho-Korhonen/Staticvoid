@@ -34,6 +34,11 @@ export default function App() {
     setSearch((prev) => ({ title: nextTitle, from, to, requestId: prev.requestId + 1 }));
   }
 
+  /** Re-runs the last submitted search, e.g. after it was cancelled. */
+  function restart() {
+    setSearch((prev) => ({ ...prev, requestId: prev.requestId + 1 }));
+  }
+
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     runSearch(title.trim());
@@ -62,7 +67,12 @@ export default function App() {
         <DateRangePicker from={from} to={to} onFromChange={(date) => updateRange(date, to)} onToChange={(date) => updateRange(from, date)} />
 
         {from && to && !validRange && <p className="message validation" role="status">The first date needs to be earlier than the second.</p>}
-        {error && <p className="message error" role="alert">Could not load the comparison: {error}</p>}
+        {error && (
+          <div className="message error" role="alert">
+            <p>Could not load the comparison: {error}</p>
+            <button type="button" className="compare-button" onClick={restart}>Restart</button>
+          </div>
+        )}
         {error && progress?.totalChanges !== undefined && (
           <p className="reading-note">Incomplete review: {progress.reviewedChanges ?? 0} of {progress.totalChanges} passages inspected.</p>
         )}
