@@ -241,7 +241,7 @@ def _validate(response_text: str | None, selected: list[dict], passages: list[di
                 (after is not None and after not in passage["afterPassages"]):
             raise BatchError("Gemini referenced a missing source passage. Please try again.")
         if _is_flagged(item.flags, item.neutrality) and before is None and after is None:
-            raise BatchError("Gemini flagged an edit without evidence. Please try again.")
+            raise BatchError("Gemini marked an edit suspicious without evidence. Please try again.")
         output.append({
             **source, **item.model_dump(exclude={"changeIndex", "evidenceBeforeId", "evidenceAfterId"}),
             "evidenceBefore": passage["beforePassages"].get(before),
@@ -392,17 +392,17 @@ def _overall_neutrality(reviewed: list[dict]) -> str:
 
 def _summary_text(reviewed: list[dict], flagged: list[dict]) -> str:
     if flagged:
-        return (f"{len(flagged)} of {len(reviewed)} reviewed passages were flagged for possible vandalism "
+        return (f"{len(flagged)} of {len(reviewed)} reviewed passages look suspicious: possible vandalism "
                 f"or perception-shaping. {flagged[0]['explanation']}")
     if reviewed:
-        return "No supported warning signs were flagged in the inspected edits."
+        return "No suspicious edits were found."
     return "No text changes were found in the saved revisions for this period."
 
 
 def _overall_agenda(flagged: list[dict]) -> str | None:
     agendas = list(dict.fromkeys(c["possibleAgenda"] for c in flagged if c["possibleAgenda"]))
     if len(agendas) > 1:
-        return "Different possible framing goals appear; see the flagged revisions."
+        return "Different possible framing goals appear; see the suspicious edits."
     return agendas[0] if agendas else None
 
 
