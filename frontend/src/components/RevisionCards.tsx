@@ -1,19 +1,29 @@
-import type { Comparison, RevisionInfo } from '../types';
+import type { ChangesResponse, RevisionBrief } from '../types';
+import { formatBytes, formatDate, revisionUrl } from '../format';
 
-function Card({ title, revision }: { title: string; revision: RevisionInfo | null }) {
+function Card({ title, revision, empty }: { title: string; revision: RevisionBrief | null; empty: string }) {
   return (
     <div className="card">
       <strong>{title}</strong>
-      <span>{revision ? `Revision of ${revision.date}` : 'No revision existed on this date'}</span>
+      {revision ? (
+        <span>
+          <a href={revisionUrl(revision.rev_id)} target="_blank" rel="noreferrer">
+            Revision of {formatDate(revision.timestamp)}
+          </a>
+          {revision.bytes != null && ` · ${formatBytes(revision.bytes)}`}
+        </span>
+      ) : (
+        <span>{empty}</span>
+      )}
     </div>
   );
 }
 
-export default function RevisionCards({ comparison }: { comparison: Comparison }) {
+export default function RevisionCards({ data }: { data: ChangesResponse }) {
   return (
     <div className="cards">
-      <Card title="Earlier version" revision={comparison.from} />
-      <Card title="Later version" revision={comparison.to} />
+      <Card title="Earlier version" revision={data.baseline} empty="The article did not exist yet" />
+      <Card title="Later version" revision={data.final} empty="The article did not exist yet" />
     </div>
   );
 }

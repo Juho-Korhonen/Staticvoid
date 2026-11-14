@@ -1,16 +1,20 @@
-import type { Change } from '../types';
+import type { ChangesResponse } from '../types';
+import { formatBytes } from '../format';
 
-export default function Summary({ changes }: { changes: Change[] }) {
-  const positive = changes.filter((c) => c.toneDelta > 0).length;
-  const negative = changes.filter((c) => c.toneDelta < 0).length;
-  const net = changes.reduce((sum, c) => sum + c.toneDelta, 0);
+export default function Summary({ summary }: { summary: ChangesResponse['summary'] }) {
+  const growth = summary.bytes_end - summary.bytes_start;
 
   return (
     <section className="summary" aria-label="Change summary">
-      <div><strong>{changes.length}</strong>changes</div>
-      <div><strong className="positive">{positive}</strong>more positive</div>
-      <div><strong className="negative">{negative}</strong>more negative</div>
-      <div><strong>{net > 0 ? `+${net}` : net}</strong>net tone shift</div>
+      <div><strong>{summary.revisions}</strong>edits</div>
+      <div><strong>{summary.editors}</strong>editors ({summary.anonymous_edits} anonymous edits)</div>
+      <div><strong className={summary.reverts ? 'negative' : ''}>{summary.reverts}</strong>reverts</div>
+      <div>
+        <strong className={growth > 0 ? 'positive' : growth < 0 ? 'negative' : ''}>
+          {growth > 0 ? '+' : growth < 0 ? '−' : ''}{formatBytes(Math.abs(growth))}
+        </strong>
+        size change
+      </div>
     </section>
   );
 }
