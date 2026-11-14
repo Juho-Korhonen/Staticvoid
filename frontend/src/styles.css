@@ -89,6 +89,10 @@ h2 { font-size: 1.45em; margin: 22px 0 10px; padding-bottom: 3px; border-bottom:
 .removed, .added { padding: 1px 3px; border-radius: 2px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .removed { background: var(--removed-bg); color: var(--text); text-decoration: line-through; text-decoration-thickness: 1px; }
 .added { background: var(--added-bg); color: var(--text); }
+.wikilink { color: var(--blue); }
+.chip { margin: 0 2px; padding: 0; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.chip:hover, .chip[aria-expanded="true"] { color: var(--blue); text-decoration: underline; }
+.chip-raw { display: block; margin: 4px 0; color: var(--muted); font-family: monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .reading { padding: 14px 16px; background: var(--page); border: 1px solid var(--line); }
 .reading h2 { margin: 4px 0 8px; border: 0; }
 .reading p { margin: 7px 0; }
