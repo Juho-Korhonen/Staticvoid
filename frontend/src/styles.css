@@ -86,6 +86,8 @@ h2 { font-size: 1.45em; margin: 22px 0 10px; padding-bottom: 3px; border-bottom:
 .change.negative { border-color: var(--negative); }
 .change-copy p { display: grid; grid-template-columns: 48px 1fr; gap: 8px; margin: 0 0 6px; }
 .change-label { color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.change-label.before { color: var(--removed-text); }
+.change-label.after { color: var(--added-text); }
 .removed, .added { padding: 1px 3px; border-radius: 2px; }
 .removed { background: var(--removed-bg); color: var(--removed-text); text-decoration: line-through; text-decoration-thickness: 1px; }
 .added { background: var(--added-bg); color: var(--added-text); }

@@ -12,7 +12,7 @@ const NOT_QUOTED = 'Not quoted by the review; see the full wording below.';
 function Passage({ side, text, fallback, href }: { side: 'before' | 'after'; text: string | null; fallback: string; href: string | null }) {
   return (
     <p>
-      <ExternalLink className="change-label" href={href}>{side === 'before' ? 'Before' : 'After'}</ExternalLink>
+      <ExternalLink className={`change-label ${side}`} href={href}>{side === 'before' ? 'Before' : 'After'}</ExternalLink>
       {text
         ? <span className={side === 'before' ? 'removed' : 'added'}>{readableWikiText(text)}</span>
         : <span className="missing">{fallback}</span>}
