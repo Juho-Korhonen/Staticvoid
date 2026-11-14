@@ -1,132 +1,83 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import Header from './components/Header';
+import ArticleSearch from './components/ArticleSearch';
 import DateRangePicker from './components/DateRangePicker';
+import ReviewProgress from './components/ReviewProgress';
 import RevisionCards from './components/RevisionCards';
 import Summary from './components/Summary';
 import ChangeList from './components/ChangeList';
 import { useComparison } from './hooks/useComparison';
-import { searchArticles } from './services/articleService';
-import type { PageSearchResult } from './types';
 
-const DEFAULT_ARTICLE_TITLE = 'Suomen sisällissota';
+const DEFAULT_SEARCH = { title: 'Suomen sisällissota', from: '2015-01-01', to: '2015-03-01' };
+
+function isValidRange(from: string, to: string): boolean {
+  return Boolean(from && to && from < to);
+}
 
 export default function App() {
-  const [from, setFrom] = useState('2015-01-01');
-  const [to, setTo] = useState('2015-03-01');
-  const [title, setTitle] = useState(DEFAULT_ARTICLE_TITLE);
-  const [search, setSearch] = useState({ title: DEFAULT_ARTICLE_TITLE, from: '2015-01-01', to: '2015-03-01', requestId: 0 });
-  const [suggestions, setSuggestions] = useState<PageSearchResult[]>([]);
-  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [title, setTitle] = useState(DEFAULT_SEARCH.title);
+  const [from, setFrom] = useState(DEFAULT_SEARCH.from);
+  const [to, setTo] = useState(DEFAULT_SEARCH.to);
+  // The submitted search; `requestId` re-runs an identical search.
+  const [search, setSearch] = useState({ ...DEFAULT_SEARCH, requestId: 0 });
   const { data, loading, error, progress, cancel } = useComparison(search.title, search.from, search.to, search.requestId);
-  const invalidSearch = !title.trim() || !from || !to || from >= to;
-
-  useEffect(() => {
-    const query = title.trim();
-    if (query.length < 2 || query.toLocaleLowerCase() === search.title.toLocaleLowerCase()) {
-      setSuggestions([]);
-      setSuggestionsLoading(false);
-      return;
-    }
-
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => {
-      setSuggestionsLoading(true);
-      searchArticles(query, 8, controller.signal)
-        .then((results) => setSuggestions(results))
-        .catch((err: Error) => {
-          if (err.name !== 'AbortError') setSuggestions([]);
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setSuggestionsLoading(false);
-        });
-    }, 250);
-
-    return () => {
-      window.clearTimeout(timeout);
-      controller.abort();
-    };
-  }, [title, search.title]);
+  const validRange = isValidRange(from, to);
 
   function updateRange(nextFrom: string, nextTo: string) {
     setFrom(nextFrom);
     setTo(nextTo);
-    if (nextFrom && nextTo && nextFrom < nextTo) {
-      setSearch((current) => ({ ...current, from: nextFrom, to: nextTo }));
-    }
+    if (isValidRange(nextFrom, nextTo)) setSearch((current) => ({ ...current, from: nextFrom, to: nextTo }));
+  }
+
+  function runSearch(nextTitle: string) {
+    if (!nextTitle || !validRange) return;
+    setSearch((prev) => ({ title: nextTitle, from, to, requestId: prev.requestId + 1 }));
   }
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (invalidSearch) return;
-    setSearch((prev) => ({ title: title.trim(), from, to, requestId: prev.requestId + 1 }));
-    setShowSuggestions(false);
-    setSuggestions([]);
+    runSearch(title.trim());
   }
 
-  function chooseSuggestion(result: PageSearchResult) {
-    setTitle(result.title);
-    if (from && to && from < to) {
-      setSearch((prev) => ({ title: result.title, from, to, requestId: prev.requestId + 1 }));
-    }
-    setShowSuggestions(false);
-    setSuggestions([]);
+  function chooseSuggestion(chosen: string) {
+    setTitle(chosen);
+    runSearch(chosen);
   }
 
   return (
     <>
       <Header />
       <main>
-        <div className="page-tabs" aria-label="Article tools">
-          <span className="page-tab active">Article history</span>
-          <a className="page-tab" href="#date-picker-heading">Compare revisions</a>
-        </div>
-        <form className="article-search" onSubmit={submitSearch}>
-          <div className="article-title-field">
-            <label htmlFor="article-title">Search an article</label>
-            <span className="article-search-row">
-              <span className="article-search-input-wrap">
-                <input id="article-title" value={title} placeholder="Search an article" autoComplete="off" aria-autocomplete="list" aria-expanded={showSuggestions && (suggestionsLoading || suggestions.length > 0)} aria-controls="article-suggestions" onFocus={() => setShowSuggestions(true)} onChange={(event) => { setTitle(event.target.value); setShowSuggestions(true); }} />
-                {showSuggestions && title.trim().length >= 2 && (suggestionsLoading || suggestions.length > 0) && <ul id="article-suggestions" className="article-suggestions" role="listbox">
-                  {suggestionsLoading && <li className="suggestions-status" role="option" aria-disabled="true">Searching…</li>}
-                  {suggestions.map((result) => <li key={result.page_id} role="option" aria-selected="false">
-                    <button type="button" onClick={() => chooseSuggestion(result)}>{result.title}<small>{result.n_versions.toLocaleString()} saved versions</small></button>
-                  </li>)}
-                </ul>}
-              </span>
-              <button className="compare-button search-button" type="submit" disabled={invalidSearch || loading}>Search</button>
-            </span>
-          </div>
-        </form>
-        <h1 id="article-heading">{search.title || 'Article changes'}</h1>
+        <ArticleSearch
+          value={title}
+          selectedTitle={search.title}
+          disabled={!title.trim() || !validRange || loading}
+          onChange={setTitle}
+          onSubmit={submitSearch}
+          onChoose={chooseSuggestion}
+        />
+        <h1 id="article-heading">{search.title}</h1>
         <p className="subtitle">Finnish Wikipedia · How the article’s framing changed over time</p>
 
-        <form onSubmit={submitSearch}>
-          <DateRangePicker from={from} to={to} onFromChange={(date) => updateRange(date, to)} onToChange={(date) => updateRange(from, date)} />
-        </form>
+        <DateRangePicker from={from} to={to} onFromChange={(date) => updateRange(date, to)} onToChange={(date) => updateRange(from, date)} />
 
-        {from && to && from >= to && <p className="message validation" role="status">The first date needs to be earlier than the second.</p>}
+        {from && to && !validRange && <p className="message validation" role="status">The first date needs to be earlier than the second.</p>}
         {error && <p className="message error" role="alert">Could not load the comparison: {error}</p>}
-        {error && progress?.totalChanges !== undefined && <p className="reading-note">Incomplete review: {progress.reviewedChanges ?? 0} of {progress.totalChanges} passages inspected.</p>}
-        {loading && <div className="message loading" role="status">
-          <p>{progress?.stage === 'analyzing'
-            ? `Inspecting every saved edit: ${progress.reviewedRevisions ?? 0}/${progress.totalRevisions ?? 0} revisions, ${progress.reviewedChanges ?? 0}/${progress.totalChanges ?? 0} passages. Batch ${progress.completedBatches ?? 0}/${progress.totalBatches ?? 0}.`
-            : 'Loading all saved revisions and comparing each edit…'}</p>
-          <button type="button" className="compare-button" onClick={cancel}>Cancel review</button>
-        </div>}
+        {error && progress?.totalChanges !== undefined && (
+          <p className="reading-note">Incomplete review: {progress.reviewedChanges ?? 0} of {progress.totalChanges} passages inspected.</p>
+        )}
+        {loading && <ReviewProgress progress={progress} onCancel={cancel} />}
 
         {data && !loading && (
-          <>
-            <div aria-live="polite" aria-busy={loading}>
-              <RevisionCards comparison={data} />
-              <Summary comparison={data} />
-              <details className="remaining-changes">
-                <summary>View flagged edits and the full review</summary>
-                <h2 id="changes-heading">Evidence from the revisions</h2>
-                <ChangeList comparison={data} />
-              </details>
-            </div>
-          </>
+          <div aria-live="polite">
+            <RevisionCards from={data.from} to={data.to} />
+            <Summary comparison={data} />
+            <details className="remaining-changes">
+              <summary>View flagged edits and the full review</summary>
+              <h2 id="changes-heading">Evidence from the revisions</h2>
+              <ChangeList analysis={data.analysis} />
+            </details>
+          </div>
         )}
       </main>
     </>

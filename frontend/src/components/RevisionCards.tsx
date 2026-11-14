@@ -1,21 +1,22 @@
-import type { Comparison, RevisionInfo } from '../types';
+import type { RevisionInfo } from '../types';
+import ExternalLink from './ExternalLink';
 
 function Card({ title, revision }: { title: string; revision: RevisionInfo | null }) {
   return (
     <div className="card">
       <strong>{title}</strong>
-      {revision ? <a href={`https://fi.wikipedia.org/w/index.php?oldid=${revision.revId}`} target="_blank" rel="noreferrer">
-        Revision of {revision.date} on Wikipedia ↗
-      </a> : <span>No revision existed on this date</span>}
+      {revision
+        ? <ExternalLink href={revision.url}>Revision of {revision.date} on Wikipedia ↗</ExternalLink>
+        : <span>No revision existed on this date</span>}
     </div>
   );
 }
 
-export default function RevisionCards({ comparison }: { comparison: Comparison }) {
+export default function RevisionCards({ from, to }: { from: RevisionInfo | null; to: RevisionInfo | null }) {
   return (
     <div className="cards">
-      <Card title="Earlier version" revision={comparison.from} />
-      <Card title="Later version" revision={comparison.to} />
+      <Card title="Earlier version" revision={from} />
+      <Card title="Later version" revision={to} />
     </div>
   );
 }

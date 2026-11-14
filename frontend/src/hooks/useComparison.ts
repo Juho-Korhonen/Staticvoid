@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { compareArticle } from '../services/articleService';
 import type { AnalysisProgress, Comparison } from '../types';
 
+// Debounces date edits and React StrictMode's replay before making paid requests.
+const DEBOUNCE_MS = 400;
+
 interface State {
   data: Comparison | null;
   loading: boolean;
@@ -9,33 +12,34 @@ interface State {
   progress: AnalysisProgress | null;
 }
 
-/** Loads the comparison whenever the article or either date changes. */
+const IDLE: State = { data: null, loading: false, error: null, progress: null };
+
+/** Loads the comparison whenever the article, either date or `requestId` changes. */
 export function useComparison(title: string, from: string, to: string, requestId = 0): State & { cancel: () => void } {
-  const [state, setState] = useState<State>({ data: null, loading: true, error: null, progress: null });
+  const [state, setState] = useState<State>({ ...IDLE, loading: true });
   const activeRequest = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!from || !to || from >= to) {
-      setState({ data: null, loading: false, error: null, progress: null });
+      setState(IDLE);
       return;
     }
     const controller = new AbortController();
     activeRequest.current = controller;
+    const isCurrent = () => !controller.signal.aborted; // a newer request replaces this one
 
-    setState({ data: null, loading: true, error: null, progress: { stage: 'loading' } });
-    // Debounce date edits and React StrictMode's replay before making paid requests.
+    setState({ ...IDLE, loading: true, progress: { stage: 'loading' } });
     const timer = window.setTimeout(() => {
       compareArticle(title, from, to, controller.signal, (progress) => {
-        if (!controller.signal.aborted) setState((prev) => ({ ...prev, progress }));
+        if (isCurrent()) setState((prev) => ({ ...prev, progress }));
       })
         .then((data) => {
-          if (!controller.signal.aborted) setState((prev) => ({ ...prev, data, loading: false, error: null }));
+          if (isCurrent()) setState((prev) => ({ ...prev, data, loading: false, error: null }));
         })
         .catch((err: Error) => {
-          if (controller.signal.aborted) return; // a newer request replaced this one
-          setState((prev) => ({ ...prev, data: null, loading: false, error: err.message }));
+          if (isCurrent()) setState((prev) => ({ ...prev, data: null, loading: false, error: err.message }));
         });
-    }, 400);
+    }, DEBOUNCE_MS);
 
     return () => {
       window.clearTimeout(timer);

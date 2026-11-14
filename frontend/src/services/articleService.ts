@@ -1,48 +1,63 @@
-import type { Analysis, AnalysisProgress, ArticleChanges, Comparison, PageSearchResult } from '../types';
+import type { AnalysisProgress, AnalyzedArticle, Comparison, PageSearchResult, RevisionPoint } from '../types';
 
 const API_URL = '/api';
+const ISO_DATE_LENGTH = 'YYYY-MM-DD'.length;
 
-async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, { signal });
-  if (!response.ok) {
-    let message = `API returned ${response.status}`;
-    try {
-      const body = (await response.json()) as { detail?: unknown };
-      if (typeof body.detail === 'string') message = body.detail;
-    } catch {
-      // Keep the status message when the server doesn't return JSON.
-    }
-    throw new Error(message);
-  }
-  return response.json() as Promise<T>;
-}
-
-/** Search current and historical article titles. */
-export function searchArticles(
-  query: string,
-  limit = 20,
-  signal?: AbortSignal
-): Promise<PageSearchResult[]> {
-  const params = new URLSearchParams({ q: query, limit: String(limit) });
-  return fetchJson(`/pages/search?${params}`, signal);
-}
-
-/** Fetch the API's full revision-by-revision comparison payload. */
-export function getArticleChanges(
-  title: string,
-  start: string,
-  end: string,
-  signal?: AbortSignal
-): Promise<ArticleChanges> {
-  const params = new URLSearchParams({ title, start, end });
-  return fetchJson(`/changes?${params}`, signal);
-}
-
-type AnalyzedArticle = ArticleChanges & { rhetoric_analysis: Analysis };
 type AnalysisEvent =
   | ({ type: 'progress' } & AnalysisProgress)
   | { type: 'complete'; result: AnalyzedArticle }
   | { type: 'error'; detail: string };
+
+async function request(path: string, signal?: AbortSignal): Promise<Response> {
+  const response = await fetch(`${API_URL}${path}`, { signal });
+  if (!response.ok) {
+    // Keep the status message when the server doesn't return a JSON `detail`.
+    const body = await response.json().catch(() => null);
+    throw new Error(typeof body?.detail === 'string' ? body.detail : `API returned ${response.status}`);
+  }
+  return response;
+}
+
+/** Each line of a newline-delimited JSON stream, parsed. */
+async function* readNdjson<T>(body: ReadableStream<Uint8Array>): AsyncGenerator<T> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      const lines = buffer.split('\n');
+      buffer = done ? '' : lines.pop() ?? '';
+      for (const line of lines) {
+        if (line.trim()) yield JSON.parse(line) as T;
+      }
+      if (done) return;
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+}
+
+function toComparison(result: AnalyzedArticle): Comparison {
+  const analysis = result.rhetoric_analysis;
+  const point = (revision: RevisionPoint | null, url: string | null) =>
+    revision && { date: revision.timestamp.slice(0, ISO_DATE_LENGTH), url };
+  return {
+    from: point(result.baseline, analysis.sources.before),
+    to: point(result.final, analysis.sources.after),
+    analysis,
+    revisionCount: result.summary.revisions,
+    editorCount: result.summary.editors,
+  };
+}
+
+/** Search current and historical article titles. */
+export async function searchArticles(query: string, limit: number, signal?: AbortSignal): Promise<PageSearchResult[]> {
+  const params = new URLSearchParams({ q: query, limit: String(limit) });
+  return (await request(`/pages/search?${params}`, signal)).json();
+}
 
 /** Review every saved edit, reporting progress until a complete result arrives. */
 export async function compareArticle(
@@ -52,49 +67,17 @@ export async function compareArticle(
   signal?: AbortSignal,
   onProgress?: (progress: AnalysisProgress) => void
 ): Promise<Comparison> {
-  const params = new URLSearchParams({ title, start: from, end: to, max_revisions: '0', analyze: 'true', stream: 'true' });
-  const response = await fetch(`${API_URL}/changes?${params}`, { signal });
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new Error(typeof body?.detail === 'string' ? body.detail : `API returned ${response.status}`);
-  }
+  const params = new URLSearchParams({
+    title, start: from, end: to,
+    max_revisions: '0', // the UI shows only the review, not the raw revision diffs
+    analyze: 'true', stream: 'true',
+  });
+  const response = await request(`/changes?${params}`, signal);
   if (!response.body) throw new Error('The analysis stream is unavailable. No complete review was received.');
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let result: AnalyzedArticle | undefined;
-  const consume = (line: string) => {
-    if (!line.trim()) return;
-    const event = JSON.parse(line) as AnalysisEvent;
+  for await (const event of readNdjson<AnalysisEvent>(response.body)) {
     if (event.type === 'error') throw new Error(event.detail);
-    if (event.type === 'progress') onProgress?.(event);
-    if (event.type === 'complete') result = event.result;
-  };
-  try {
-    while (!result) {
-      const { value, done } = await reader.read();
-      buffer += decoder.decode(value, { stream: !done });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-      for (const line of lines) consume(line);
-      if (done) {
-        consume(buffer);
-        break;
-      }
-    }
-  } finally {
-    await reader.cancel().catch(() => {});
-    reader.releaseLock();
+    if (event.type === 'complete') return toComparison(event.result);
+    onProgress?.(event);
   }
-  if (!result) throw new Error('Analysis interrupted before completion. Not all changes were inspected.');
-
-  return {
-    article: result.title,
-    from: result.baseline ? { date: result.baseline.timestamp.slice(0, 10), revId: result.baseline.rev_id, title: result.baseline.title } : null,
-    to: result.final ? { date: result.final.timestamp.slice(0, 10), revId: result.final.rev_id, title: result.final.title } : null,
-    changes: result.rhetoric_analysis.changes,
-    analysis: result.rhetoric_analysis,
-    revisionCount: result.summary.revisions,
-    editorCount: result.summary.editors,
-  };
+  throw new Error('Analysis interrupted before completion. Not all changes were inspected.');
 }

@@ -22,6 +22,8 @@ Cancel review stops the stream, and incomplete reviews are never labeled complet
 
 ## Structure
 - `src/services/`   talks to the backend (the only place that uses fetch)
-- `src/hooks/`      loads data for the UI (loading, error, cancel old requests)
+- `src/hooks/`      loads data for the UI (debounce, loading, error, cancel old requests)
 - `src/components/` small display components
+- `src/utils/`      text cleanup and review ordering helpers
+- `src/types.ts`    API and UI types; `src/labels.ts` display labels
 - `../server/`      revision lookup, text diffs, and structured Gemini analysis

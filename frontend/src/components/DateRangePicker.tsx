@@ -5,12 +5,18 @@ interface Props {
   onToChange: (date: string) => void;
 }
 
+const PRESET_YEARS = [5, 10];
+
+const twoDigits = (n: number) => String(n).padStart(2, '0');
+
+/** `date` (YYYY-MM-DD) plus whole years, clamped to the month's last day (Feb 29 -> Feb 28). */
 function addYears(date: string, years: number): string {
   if (!date) return '';
   const [year, month, day] = date.split('-').map(Number);
   const targetYear = year + years;
+  // Day 0 of the next month is the last day of this one (`month` is 1-based, Date.UTC's is 0-based).
   const lastDay = new Date(Date.UTC(targetYear, month, 0)).getUTCDate();
-  return `${targetYear}-${String(month).padStart(2, '0')}-${String(Math.min(day, lastDay)).padStart(2, '0')}`;
+  return `${targetYear}-${twoDigits(month)}-${twoDigits(Math.min(day, lastDay))}`;
 }
 
 export default function DateRangePicker({ from, to, onFromChange, onToChange }: Props) {
@@ -26,8 +32,9 @@ export default function DateRangePicker({ from, to, onFromChange, onToChange }: 
       </div>
       <div className="presets" aria-label="Suggested date ranges">
         <span>Try:</span>
-        <button type="button" disabled={!from} onClick={() => onToChange(addYears(from, 5))}>5 years from start</button>
-        <button type="button" disabled={!from} onClick={() => onToChange(addYears(from, 10))}>10 years from start</button>
+        {PRESET_YEARS.map((years) => (
+          <button key={years} type="button" disabled={!from} onClick={() => onToChange(addYears(from, years))}>{years} years from start</button>
+        ))}
       </div>
     </section>
   );
