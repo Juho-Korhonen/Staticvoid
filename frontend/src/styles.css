@@ -93,8 +93,8 @@ h2 { font-size: 1.45em; margin: 22px 0 10px; padding-bottom: 3px; border-bottom:
 .remaining-changes { margin-top: 12px; }
 .result-views { display: flex; gap: 6px; margin-top: 8px; }
 
-.review-history { margin: 22px 0; padding: 14px 16px; border: 1px solid var(--line); }
-.review-history h2 { margin: 0 0 8px; border: 0; }
+.review-history { margin: 22px 0; }
+.review-history h2 { margin: 0 0 8px; }
 
 .history-legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
 .history-legend button { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 3px; color: var(--text); cursor: pointer; font-size: 12px; }

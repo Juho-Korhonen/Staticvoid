@@ -10,7 +10,7 @@ const COLORS: Record<ChangeCategory, string> = {
 };
 const WIDTH = 800;
 const HEIGHT = 280;
-const MARGIN = { left: 52, right: 52, top: 28, bottom: 48 };
+const MARGIN = { left: 52, right: 32, top: 28, bottom: 48 };
 const Y_INTERVALS = 4;
 const MAX_DATE_LABELS = 6;
 const DATE = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
