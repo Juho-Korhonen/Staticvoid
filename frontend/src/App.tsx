@@ -61,7 +61,7 @@ export default function App() {
           onSubmit={submitSearch}
           onChoose={chooseSuggestion}
         />
-        <h1 id="article-heading">{search.title}</h1>
+        <h1>{search.title}</h1>
         <p className="subtitle">Finnish Wikipedia · How the article’s framing changed over time</p>
 
         <DateRangePicker from={from} to={to} onFromChange={(date) => updateRange(date, to)} onToChange={(date) => updateRange(from, date)} />
