@@ -76,17 +76,17 @@ h2 { font-size: 1.45em; margin: 22px 0 10px; padding-bottom: 3px; border-bottom:
 .card span { margin-top: 3px; font-size: 13px; color: var(--muted); }
 .card a { display: inline-block; margin-top: 3px; color: var(--blue); font-size: 13px; }
 
-
 .change-list { list-style: none; margin: 0; padding: 0; }
 .change-list li + li { border-top: 1px solid #eaecf0; }
 .change { padding: 11px 4px 10px 12px; border-left: 3px solid var(--line); }
 .change.positive { border-color: var(--positive); }
 .change.negative { border-color: var(--negative); }
-.change-copy p { display: grid; grid-template-columns: 48px 1fr; gap: 8px; margin: 0 0 6px; }
+.change-copy { display: grid; grid-template-columns: max-content 1fr; gap: 6px 8px; margin-bottom: 6px; }
+.change-copy p { display: contents; }
 .change-label { color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .change-label.before { color: var(--removed-text); }
 .change-label.after { color: var(--added-text); }
-.removed, .added { padding: 1px 3px; border-radius: 2px; }
+.removed, .added { padding: 1px 3px; border-radius: 2px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .removed { background: var(--removed-bg); color: var(--removed-text); text-decoration: line-through; text-decoration-thickness: 1px; }
 .added { background: var(--added-bg); color: var(--added-text); }
 .reading { padding: 14px 16px; background: var(--blue-soft); border: 1px solid var(--line); }
@@ -95,13 +95,10 @@ h2 { font-size: 1.45em; margin: 22px 0 10px; padding-bottom: 3px; border-bottom:
 .reading-label, .reading-note { color: var(--muted); font-size: 12px; }
 .reading-label { font-weight: 700; }
 .source-links { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; margin-top: 12px; }
-.source-links a, .source-excerpts a { color: var(--blue); }
-.change-explanation, .source-excerpts { color: var(--text); }
-.change-explanation { margin: 5px 0 10px; }
+.source-links a, .diff-link { color: var(--blue); }
+.change-explanation { margin: 5px 0 10px; color: var(--text); }
 .missing { color: var(--muted); font-style: italic; }
-.source-excerpts { margin-top: 10px; overflow-wrap: anywhere; }
-.source-excerpts summary, .remaining-changes > summary { cursor: pointer; color: var(--blue); font-size: 12px; padding: 5px 0; }
-.source-excerpts .change-copy { margin-top: 10px; }
+.remaining-changes > summary { cursor: pointer; color: var(--blue); font-size: 12px; padding: 5px 0; }
 .remaining-changes { margin-top: 12px; }
 
 @media (max-width: 640px) {

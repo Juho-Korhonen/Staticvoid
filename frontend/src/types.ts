@@ -41,8 +41,6 @@ export interface Change {
   hedgeAdded: boolean;
   neutrality: Neutrality;
   explanation: string;
-  evidenceBefore: string | null;
-  evidenceAfter: string | null;
   framingChanges: string[];
   neutralWording: string | null;
   flags: Flag[];
