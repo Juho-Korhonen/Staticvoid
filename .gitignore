@@ -15,3 +15,5 @@ dist/
 *.zip
 *.log
 .DS_Store
+
+DEPLOY.md

@@ -1,0 +1,8 @@
+duckdb
+pytz
+fastapi
+uvicorn
+google-genai
+httpx
+pydantic
+python-dotenv
