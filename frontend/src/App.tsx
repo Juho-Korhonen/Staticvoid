@@ -3,7 +3,6 @@ import Header from './components/Header';
 import ArticleSearch from './components/ArticleSearch';
 import DateRangePicker from './components/DateRangePicker';
 import ReviewProgress from './components/ReviewProgress';
-import RevisionCards from './components/RevisionCards';
 import Summary from './components/Summary';
 import ReviewHistory from './components/ReviewHistory';
 import ChangeList from './components/ChangeList';
@@ -81,7 +80,6 @@ export default function App() {
 
         {data && !loading && (
           <div aria-live="polite">
-            <RevisionCards from={data.from} to={data.to} />
             <Summary comparison={data} />
             <ReviewHistory changes={data.analysis.changes} from={search.from} to={search.to} />
             <details className="remaining-changes">

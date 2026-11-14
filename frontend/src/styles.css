@@ -69,13 +69,6 @@ h2 { font-size: 1.45em; margin: 22px 0 10px; padding-bottom: 3px; border-bottom:
 .article-search-row { display: flex; align-items: center; gap: 8px; }
 .presets button:disabled { opacity: .55; cursor: not-allowed; }
 
-.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0 18px; }
-.card { padding: 9px 11px; background: #f8f6fa; border: 1px solid var(--line); border-radius: 0; }
-.card strong, .card span { display: block; }
-.card strong { font-size: 13px; }
-.card span { margin-top: 3px; font-size: 13px; color: var(--muted); }
-.card a { display: inline-block; margin-top: 3px; color: var(--blue); font-size: 13px; }
-
 .flag-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .flag-filters button { padding: 4px 8px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); color: var(--blue); cursor: pointer; font-size: 12px; }
 .flag-filters button:hover { background: var(--blue-soft); }
@@ -126,7 +119,6 @@ h2 { font-size: 1.45em; margin: 22px 0 10px; padding-bottom: 3px; border-bottom:
   .date-picker { padding: 13px 12px; }
   .date-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .date-picker input { min-width: 0; width: 100%; }
-  .cards { grid-template-columns: 1fr; gap: 8px; }
   .compare-button { width: 100%; }
 }
 

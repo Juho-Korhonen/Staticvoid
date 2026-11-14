@@ -91,14 +91,7 @@ export interface AnalyzedArticle {
 
 // UI-facing model, adapted from AnalyzedArticle by articleService.ts.
 
-export interface RevisionInfo {
-  date: string;
-  url: string | null;
-}
-
 export interface Comparison {
-  from: RevisionInfo | null;
-  to: RevisionInfo | null;
   analysis: Analysis;
   revisionCount: number;
   editorCount: number;

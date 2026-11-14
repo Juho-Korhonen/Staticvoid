@@ -1,7 +1,6 @@
-import type { AnalysisProgress, AnalyzedArticle, Comparison, PageSearchResult, RevisionPoint } from '../types';
+import type { AnalysisProgress, AnalyzedArticle, Comparison, PageSearchResult } from '../types';
 
 const API_URL = '/api';
-const ISO_DATE_LENGTH = 'YYYY-MM-DD'.length;
 
 type AnalysisEvent =
   | ({ type: 'progress' } & AnalysisProgress)
@@ -42,11 +41,7 @@ async function* readNdjson<T>(body: ReadableStream<Uint8Array>): AsyncGenerator<
 
 function toComparison(result: AnalyzedArticle): Comparison {
   const analysis = result.rhetoric_analysis;
-  const point = (revision: RevisionPoint | null, url: string | null) =>
-    revision && { date: revision.timestamp.slice(0, ISO_DATE_LENGTH), url };
   return {
-    from: point(result.baseline, analysis.sources.before),
-    to: point(result.final, analysis.sources.after),
     analysis,
     revisionCount: result.summary.revisions,
     editorCount: result.summary.editors,
