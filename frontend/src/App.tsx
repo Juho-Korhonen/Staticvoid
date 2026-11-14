@@ -18,9 +18,11 @@ export default function App() {
   const [title, setTitle] = useState(DEFAULT_SEARCH.title);
   const [from, setFrom] = useState(DEFAULT_SEARCH.from);
   const [to, setTo] = useState(DEFAULT_SEARCH.to);
-  // The submitted search; `requestId` re-runs an identical search.
-  const [search, setSearch] = useState({ ...DEFAULT_SEARCH, requestId: 0 });
-  const { data, loading, error, progress, cancel } = useComparison(search.title, search.from, search.to, search.requestId);
+  // The chosen article; the review only starts from the "Start review" button.
+  const [article, setArticle] = useState(DEFAULT_SEARCH.title);
+  // The started review, null until the first start; `requestId` lets Start review re-run an identical review.
+  const [search, setSearch] = useState<typeof DEFAULT_SEARCH & { requestId: number } | null>(null);
+  const { data, loading, error, progress, cancel } = useComparison(search?.title ?? '', search?.from ?? '', search?.to ?? '', search?.requestId);
   const validRange = isValidRange(from, to);
   // The result section that is shown; null shows neither.
   const [view, setView] = useState<'history' | 'review' | null>(null);
@@ -29,30 +31,18 @@ export default function App() {
     setView((current) => (current === next ? null : next));
   }
 
-  function updateRange(nextFrom: string, nextTo: string) {
-    setFrom(nextFrom);
-    setTo(nextTo);
-    if (isValidRange(nextFrom, nextTo)) setSearch((current) => ({ ...current, from: nextFrom, to: nextTo }));
-  }
-
-  function runSearch(nextTitle: string) {
-    if (!nextTitle || !validRange) return;
-    setSearch((prev) => ({ title: nextTitle, from, to, requestId: prev.requestId + 1 }));
-  }
-
-  /** Re-runs the last submitted search, e.g. after it was cancelled. */
-  function restart() {
-    setSearch((prev) => ({ ...prev, requestId: prev.requestId + 1 }));
+  function startReview() {
+    setSearch((prev) => ({ title: article, from, to, requestId: (prev?.requestId ?? 0) + 1 }));
   }
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    runSearch(title.trim());
+    if (title.trim()) setArticle(title.trim());
   }
 
   function chooseSuggestion(chosen: string) {
     setTitle(chosen);
-    runSearch(chosen);
+    setArticle(chosen);
   }
 
   return (
@@ -61,26 +51,30 @@ export default function App() {
       <main>
         <ArticleSearch
           value={title}
-          selectedTitle={search.title}
-          disabled={!title.trim() || !validRange || loading}
+          selectedTitle={article}
+          disabled={!title.trim() || loading}
           onChange={setTitle}
           onSubmit={submitSearch}
           onChoose={chooseSuggestion}
         />
-        <h1>{search.title}</h1>
+        <h1>{article}</h1>
         <p className="subtitle">Finnish Wikipedia · How the article’s framing changed over time</p>
 
-        <DateRangePicker from={from} to={to} onFromChange={(date) => updateRange(date, to)} onToChange={(date) => updateRange(from, date)} />
+        <DateRangePicker
+          from={from}
+          to={to}
+          onFromChange={setFrom}
+          onToChange={setTo}
+          showStart={!loading}
+          startDisabled={!validRange}
+          onStart={startReview}
+        />
 
         {from && to && !validRange && <p className="message validation" role="status">The first date needs to be earlier than the second.</p>}
         {error && (
           <div className="message error" role="alert">
             <p>Could not load the comparison: {error}</p>
-            <button type="button" className="compare-button" onClick={restart}>Restart</button>
           </div>
-        )}
-        {error && progress?.totalChanges !== undefined && (
-          <p className="reading-note">Incomplete review: {progress.reviewedChanges ?? 0} of {progress.totalChanges} passages inspected.</p>
         )}
         {loading && <ReviewProgress progress={progress} onCancel={cancel} />}
 
@@ -91,7 +85,7 @@ export default function App() {
               <button type="button" aria-pressed={view === 'history'} onClick={() => toggleView('history')}>history</button>
               <button type="button" aria-pressed={view === 'review'} onClick={() => toggleView('review')}>full review</button>
             </div>
-            {view === 'history' && <ReviewHistory changes={data.analysis.changes} from={search.from} to={search.to} />}
+            {view === 'history' && search && <ReviewHistory changes={data.analysis.changes} from={search.from} to={search.to} />}
             {view === 'review' && (
               <>
                 <h2 id="changes-heading">Evidence from the revisions</h2>

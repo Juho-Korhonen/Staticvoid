@@ -14,13 +14,13 @@ interface State {
 
 const IDLE: State = { data: null, loading: false, error: null, progress: null };
 
-/** Loads the comparison whenever the article, either date or `requestId` changes. */
+/** Loads the comparison whenever the article, either date or `requestId` changes; an empty title loads nothing. */
 export function useComparison(title: string, from: string, to: string, requestId = 0): State & { cancel: () => void } {
-  const [state, setState] = useState<State>({ ...IDLE, loading: true });
+  const [state, setState] = useState<State>(IDLE);
   const activeRequest = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (!from || !to || from >= to) {
+    if (!title || !from || !to || from >= to) {
       setState(IDLE);
       return;
     }
