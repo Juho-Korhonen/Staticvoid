@@ -104,10 +104,10 @@ export default function App() {
             <div className="result-views">
               <button type="button" aria-pressed={view === 'history'} onClick={() => toggleView('history')}>history</button>
               <button type="button" aria-pressed={view === 'review'} onClick={() => toggleView('review')}>full review</button>
-              <button type="button" aria-pressed={view === 'editors'} onClick={() => toggleView('editors')}>editors</button>
+              <button type="button" aria-pressed={view === 'editors'} onClick={() => toggleView('editors')}>suspicious editors</button>
             </div>
             {view === 'history' && search && <ReviewHistory changes={data.analysis.changes} from={search.from} to={search.to} />}
-            {view === 'editors' && <EditorOverview changes={data.analysis.changes} />}
+            {view === 'editors' && <EditorOverview changes={data.analysis.changes} sources={data.analysis.sources} />}
             {view === 'review' && (
               <>
                 <h2 id="changes-heading">Evidence from the revisions</h2>

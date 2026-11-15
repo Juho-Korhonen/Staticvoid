@@ -119,6 +119,9 @@ h2 { font-size: 1.45em; margin: 22px 0 10px; padding-bottom: 3px; border-bottom:
 .history-table table, .editor-overview table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
 .history-table th, .history-table td, .editor-overview th, .editor-overview td { padding: 6px 8px; border-bottom: 1px solid var(--line-soft); text-align: left; }
 .history-table caption, .editor-overview caption { text-align: left; color: var(--muted); margin-bottom: 6px; }
+.editor-row { cursor: pointer; }
+.editor-row:hover, .editor-row:focus-within { background: var(--blue-soft); }
+.editor-toggle { padding: 0; border: 0; background: transparent; color: var(--blue); font-weight: inherit; text-align: left; cursor: pointer; }
 
 @media (max-width: 640px) {
   .site-header { gap: 20px; padding-right: 16px; padding-left: 16px; }
