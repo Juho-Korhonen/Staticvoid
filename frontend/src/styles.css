@@ -35,9 +35,10 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .language-icon { font-size: 15px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .logo { font: 22px/1.1 "Linux Libertine", Georgia, serif; padding: 4px 0 10px; white-space: nowrap; }
+.logo-title-row { display: flex; align-items: center; gap: 7px; }
 .logo small { display: block; margin-top: 3px; font: 11px Arial, sans-serif; color: var(--muted); }
-.mascot { display: grid; place-items: center; width: 35px; height: 42px; margin: 0 0 7px -20px; animation: flame-float 3s ease-in-out infinite; transform-origin: 50% 90%; }
-.mascot svg { display: block; width: 31px; height: 38px; overflow: visible; filter: drop-shadow(0 1px 3px #b995ce55); }
+.mascot { display: grid; place-items: center; width: 25px; height: 28px; margin: 0; animation: flame-float 3s ease-in-out infinite; transform-origin: 50% 90%; }
+.mascot svg { display: block; width: 25px; height: 30px; overflow: visible; filter: drop-shadow(0 1px 3px #b995ce55); }
 .flame-outer { fill: #c79acb; stroke: #9875aa; stroke-width: 1.2; stroke-linejoin: round; }
 .flame-inner { fill: #fff1cf; transform-origin: 23px 34px; animation: flame-glow 1.8s ease-in-out infinite alternate; }
 @keyframes flame-float { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-4px) rotate(3deg); } }
