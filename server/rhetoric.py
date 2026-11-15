@@ -167,6 +167,7 @@ def revision_changes(result: dict) -> list[dict]:
                 "revision": {
                     "id": revision["rev_id"], "beforeId": revision["before_rev_id"],
                     "timestamp": revision["timestamp"], "comment": revision["comment"],
+                    "user": revision.get("user"),
                     "isRevert": revision["is_revert"], "revertToRevId": revision["revert_to_rev_id"],
                 },
                 "sources": revision_sources(revision["before_rev_id"], revision["rev_id"]),

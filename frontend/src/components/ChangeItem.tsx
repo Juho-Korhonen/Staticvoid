@@ -41,7 +41,7 @@ export default function ChangeItem({ change, sources }: { change: Change; source
           {categoryLabels[change.category] ?? 'Unclassified change'}
           {change.category === 'rhetorical_change' && change.rhetoricalCategory && ` · ${rhetoricalCategoryLabels[change.rhetoricalCategory]}`}
         </strong>
-        {revision && <time className="reading-note" dateTime={revision.timestamp}>{editTime(revision.timestamp)}{revision.isRevert && ' · revert'}</time>}
+        {revision && <span className="reading-note">{revision.user && `${revision.user} · `}<time dateTime={revision.timestamp}>{editTime(revision.timestamp)}</time>{revision.isRevert && ' · revert'}</span>}
       </header>
       <p className="change-explanation">{change.explanation}</p>
       {change.possibleAgenda && <p className="reading-note">Possible framing goal: {change.possibleAgenda}</p>}
