@@ -123,6 +123,7 @@ h2 { font-size: 1.45em; margin: 22px 0 10px; padding-bottom: 3px; border-bottom:
 @media (max-width: 640px) {
   .site-header { gap: 20px; padding-right: 16px; padding-left: 16px; }
   main { min-height: calc(100vh - 60px); padding: 20px 16px 40px; }
+  .article-search { justify-content: center; }
   .date-picker { padding: 13px 12px; }
   .date-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .date-picker input { min-width: 0; width: 100%; }
