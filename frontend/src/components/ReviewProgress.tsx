@@ -5,8 +5,10 @@ function progressText(progress: AnalysisProgress | null, t: ReturnType<typeof us
   if (progress?.stage !== 'analyzing') return t('loading');
   const { reviewedRevisions = 0, totalRevisions = 0, reviewedChanges = 0, totalChanges = 0,
     completedBatches = 0, totalBatches = 0 } = progress;
-  return `${t('inspecting')}: ${reviewedRevisions}/${totalRevisions} revisions, `
-    + `${reviewedChanges}/${totalChanges} passages. Batch ${completedBatches}/${totalBatches}.`;
+  return `${t('inspecting')}: ` + t('progressCounts', {
+    revisions: reviewedRevisions, totalRevisions, passages: reviewedChanges, totalPassages: totalChanges,
+    batches: completedBatches, totalBatches,
+  });
 }
 
 export default function ReviewProgress({ progress, onCancel }: { progress: AnalysisProgress | null; onCancel: () => void }) {
