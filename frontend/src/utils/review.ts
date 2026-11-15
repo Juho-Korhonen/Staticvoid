@@ -2,6 +2,20 @@ import type { Change, Severity } from '../types';
 
 const SEVERITY_ORDER: Severity[] = ['high', 'medium', 'low', 'none'];
 
+export function isIpAddress(user: string): boolean {
+  if (!/^(?:\d{1,3}\.){3}\d{1,3}$/.test(user) && !user.includes(':')) return false;
+  try {
+    new URL(`http://${user.includes(':') ? `[${user}]` : user}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function editorName(user: string): string {
+  return isIpAddress(user) ? 'Anonymous user' : user;
+}
+
 export function isFlagged(change: Change): boolean {
   return change.flags.length > 0 || change.neutrality === 'less_neutral';
 }

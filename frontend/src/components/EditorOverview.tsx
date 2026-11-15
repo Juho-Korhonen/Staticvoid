@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
 import type { Change, Sources } from '../types';
-import { bySeverity, flaggedEditors, isFlagged } from '../utils/review';
+import { bySeverity, editorName, flaggedEditors, isFlagged, isIpAddress } from '../utils/review';
 import { PagedChanges } from './ChangeList';
 import ExternalLink from './ExternalLink';
 
@@ -24,7 +24,7 @@ export default function EditorOverview({ changes, sources }: { changes: Change[]
                 <tr className="editor-row" onClick={() => setSelectedUser(selectedUser === user ? null : user)}>
                   <th scope="row">
                     <button type="button" className="editor-toggle" aria-expanded={selectedUser === user}>
-                      <span aria-hidden="true">{selectedUser === user ? '▾' : '▸'}</span> {user}
+                      <span aria-hidden="true">{selectedUser === user ? '▾' : '▸'}</span> {editorName(user)}
                     </button>
                   </th>
                   <td>{edits}</td>
@@ -33,9 +33,11 @@ export default function EditorOverview({ changes, sources }: { changes: Change[]
                 {selectedUser === user && (
                   <tr>
                     <td colSpan={3}>
-                      <p className="reading-note">
-                        <ExternalLink href={`https://fi.wikipedia.org/wiki/Special:Contributions/${encodeURIComponent(user)}`}>Contributions ↗</ExternalLink>
-                      </p>
+                      {!isIpAddress(user) && (
+                        <p className="reading-note">
+                          <ExternalLink href={`https://fi.wikipedia.org/wiki/Special:Contributions/${encodeURIComponent(user)}`}>Contributions ↗</ExternalLink>
+                        </p>
+                      )}
                       <PagedChanges key={user} changes={selectedChanges} sources={sources} />
                     </td>
                   </tr>
