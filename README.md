@@ -10,17 +10,18 @@ Wikipedia’s neutrality takes constant work. A single changed word can shift an
 
 Every flag is a lead for human review, not a verdict.
 
-The current prototype reviews saved Finnish Wikipedia revisions from MariaDB’s Wikipedia dataset. Built with React, TypeScript, FastAPI, DuckDB, and Gemini.
+The current prototype reviews saved Finnish Wikipedia revisions from MariaDB’s Wikipedia dataset, stored in a MariaDB system-versioned table: every revision is a history row, so the database itself answers what an article said on any date. Built with React, TypeScript, FastAPI, MariaDB, and Gemini.
 
 ## Run locally
 
-Requires Python 3.10+, Node.js, and the [dataset](data/m/README.md) in `data/m/`. Set `GEMINI_API_KEY` in a root `.env` file using [.env.example](.env.example).
+Requires Python 3.10+, Node.js, a MariaDB server (see [backend](server/README.md#database)), and the [dataset](data/m/README.md) in `data/m/`. Set `GEMINI_API_KEY` in a root `.env` file using [.env.example](.env.example).
 
-Start the backend:
+Start the backend (the load runs once):
 
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m server.load_mariadb
 .venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 8000
 ```
 

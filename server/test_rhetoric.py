@@ -3,13 +3,14 @@
 import json
 import os
 import unittest
+from http import HTTPStatus
 from threading import Barrier, Event, Lock
 from types import SimpleNamespace
 from unittest.mock import patch
 from google.genai import errors
 
 from .diff import diff_texts
-from .rhetoric import SCREENED_EXPLANATION, TRIAGE_INSTRUCTION, AnalysisError, analyze_changes, evidence_passages, iter_analysis, prepare_changes, revision_changes
+from .rhetoric import SCREENED_EXPLANATION, TRIAGE_THRESHOLD, AnalysisError, analyze_changes, evidence_passages, iter_analysis, prepare_changes, revision_changes
 
 
 class EvidenceTests(unittest.TestCase):
@@ -300,11 +301,12 @@ class TriageTests(unittest.TestCase):
         self.generate = client.start().return_value.__enter__.return_value.models.generate_content
         self.addCleanup(client.stop)
         self.generate.side_effect = self.respond
+        post = patch("server.rhetoric.httpx.post", side_effect=self.decide)
+        self.post = post.start()
+        self.addCleanup(post.stop)
 
     def respond(self, **kwargs):
         changes = json.loads(kwargs["contents"])["changes"]
-        if kwargs["config"].system_instruction == TRIAGE_INSTRUCTION:
-            return self.decisions(changes)
         return SimpleNamespace(text=json.dumps({"changes": [{
             "changeIndex": c["changeIndex"], "toneDelta": -1, "hedgeAdded": False,
             "category": "rhetorical_change", "rhetoricalCategory": "loaded_language",
@@ -315,13 +317,21 @@ class TriageTests(unittest.TestCase):
             "framingChanges": [],
         } for c in changes]}))
 
-    def decisions(self, changes):
-        return SimpleNamespace(text=json.dumps({"changes": [
-            {"changeIndex": c["changeIndex"], "suspicious": c["changeIndex"] in self.suspicious} for c in changes]}))
+    def decide(self, url, headers, json, timeout):
+        """The Decisions API: P(suspicious) for every question."""
+        return self.reply(HTTPStatus.OK, {"answers": self.answers(list(json["questions"]))})
+
+    def answers(self, indices):
+        return {index: {"type": "noul", "noul": float(int(index) in self.suspicious)} for index in indices}
+
+    @staticmethod
+    def reply(status, body):
+        return SimpleNamespace(status_code=status, is_success=status == HTTPStatus.OK, json=lambda: body)
 
     def test_cleared_changes_need_no_full_analysis(self):
         result = analyze_changes("Test", self.source)
-        self.assertEqual(self.generate.call_count, 1)
+        self.assertEqual(self.post.call_count, 1)
+        self.generate.assert_not_called()
         self.assertEqual(result["flaggedChanges"], 0)
         self.assertEqual(result["coverage"]["reviewedChanges"], 5)
         self.assertEqual({c["explanation"] for c in result["changes"]}, {SCREENED_EXPLANATION["en"]})
@@ -333,50 +343,69 @@ class TriageTests(unittest.TestCase):
             {"kind": "removed", "oldText": cited, "newText": None},
             {"kind": "modified", "oldText": cited, "newText": "A policy was introduced."},
         ])
-        full = self.generate.call_args_list[1]
+        full = self.generate.call_args
         self.assertEqual([c["changeIndex"] for c in json.loads(full.kwargs["contents"])["changes"]], [1, 2])
         self.assertEqual([bool(c["flags"]) for c in result["changes"]], [False, True, True])
 
     def test_only_suspicious_changes_get_full_analysis(self):
         self.suspicious = {1, 3}
         result = analyze_changes("Test", self.source)
-        triage, full = self.generate.call_args_list
-        self.assertEqual(triage.kwargs["model"], "triage-test")
+        triage, full = self.post.call_args.kwargs["json"], self.generate.call_args
+        self.assertEqual(triage["model"], "triage-test")
         self.assertEqual(result["triageModel"], "triage-test")
+        self.assertEqual(set(triage["questions"]), {"0", "1", "2", "3", "4"})
         self.assertEqual(full.kwargs["model"], result["model"])
         self.assertEqual([c["changeIndex"] for c in json.loads(full.kwargs["contents"])["changes"]], [1, 3])
         self.assertEqual([c["changeIndex"] for c in result["changes"]], list(range(5)))
         self.assertEqual([bool(c["flags"]) for c in result["changes"]], [False, True, False, True, False])
         self.assertEqual(result["coverage"]["completedBatches"], 2)
 
+    def test_the_threshold_decides_which_changes_are_suspicious(self):
+        self.answers = lambda indices: {index: {"type": "noul", "noul": TRIAGE_THRESHOLD - 0.01 * (index == "0")}
+                                        for index in indices}
+        result = analyze_changes("Test", self.source)
+        self.assertEqual([bool(c["flags"]) for c in result["changes"]], [False, True, True, True, True])
+
+    def test_input_gemini_refuses_to_screen_gets_full_analysis(self):
+        self.post.side_effect = lambda *args, **kwargs: self.reply(HTTPStatus.BAD_REQUEST, {"error": {"code": "safety"}})
+        result = analyze_changes("Test", self.source)
+        self.assertEqual(result["flaggedChanges"], 5)
+
+    def test_rate_limited_triage_is_retried(self):
+        replies = [self.reply(HTTPStatus.TOO_MANY_REQUESTS, {"error": {"message": "Quota exceeded."}})]
+        decide = self.decide
+        self.post.side_effect = lambda *args, **kwargs: replies.pop() if replies else decide(*args, **kwargs)
+        with patch("server.rhetoric.time.sleep") as sleep:
+            result = analyze_changes("Test", self.source)
+        sleep.assert_called_once()
+        self.assertEqual(result["coverage"]["reviewedChanges"], 5)
+
     def test_hits_are_analysed_while_triage_is_still_running(self):
         self.suspicious = {0}
         analysis_started = Event()
-        respond = self.respond
-        def hold_second_triage_batch(**kwargs):
-            first_index = json.loads(kwargs["contents"])["changes"][0]["changeIndex"]
-            if kwargs["config"].system_instruction != TRIAGE_INSTRUCTION:
-                analysis_started.set()
-            elif first_index:
-                self.assertTrue(analysis_started.wait(timeout=5))
+        respond, decide = self.respond, self.decide
+        def note_analysis(**kwargs):
+            analysis_started.set()
             return respond(**kwargs)
-        self.generate.side_effect = hold_second_triage_batch
+        def hold_second_triage_batch(*args, **kwargs):
+            if "0" not in kwargs["json"]["questions"]:
+                self.assertTrue(analysis_started.wait(timeout=5))
+            return decide(*args, **kwargs)
+        self.generate.side_effect = note_analysis
+        self.post.side_effect = hold_second_triage_batch
         result = analyze_changes("Test", self.source * 12)
         self.assertEqual(result["coverage"]["reviewedChanges"], 60)
         self.assertEqual(result["flaggedChanges"], 1)
 
     def test_incomplete_triage_splits_without_losing_changes(self):
-        answer = self.decisions
-        def drop_last_of_large_batches(changes):
-            return answer(changes[:-1] if len(changes) > 2 else changes)
-        self.decisions = drop_last_of_large_batches
+        answer = self.answers
+        self.answers = lambda indices: answer(indices[:-1] if len(indices) > 2 else indices)
         result = analyze_changes("Test", self.source)
         self.assertEqual([c["changeIndex"] for c in result["changes"]], list(range(5)))
         self.assertGreater(result["coverage"]["completedBatches"], 1)
 
     def test_review_is_written_in_the_requested_language(self):
-        self.decisions = lambda changes: SimpleNamespace(text=json.dumps({"changes": [
-            {"changeIndex": c["changeIndex"], "suspicious": c["changeIndex"] == 0} for c in changes]}))
+        self.suspicious = {0}
         events = list(iter_analysis("Test", self.source, lang="fi"))
         explanations = {c["explanation"] for c in events[-1]["analysis"]["changes"][1:]}
         self.assertEqual(explanations, {SCREENED_EXPLANATION["fi"]})

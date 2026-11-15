@@ -1,8 +1,8 @@
 # Article changes API
 
-Python (FastAPI + DuckDB) service that tells what changed in a Finnish Wikipedia
+Python (FastAPI + MariaDB) service that tells what changed in a Finnish Wikipedia
 article between two dates, using the M dataset in `data/m/` (every saved version of
-~19.7k History of Finland articles, 2003–2026). The frontend (`frontend/`) calls it
+~19.7k History of Finland articles, 2003–2026) loaded into a MariaDB system-versioned table. The frontend (`frontend/`) calls it
 through the Vite proxy: `/api/*` is forwarded to `http://127.0.0.1:8000/*`.
 
 ## Install
@@ -22,8 +22,42 @@ py -m venv .venv; .venv\Scripts\python -m pip install -r requirements.txt pyarro
 ```
 
 This creates a local `.venv/` (git-ignored), so nothing is installed system-wide.
-(`pytz` is needed for DuckDB to return timezone-aware timestamps. `pyarrow` and `pandas`
-are not needed by the server, but are handy for exploring the Parquet data.)
+(DuckDB only reads the Parquet files for the load below; `pytz` lets it return timezone-aware
+timestamps. `pyarrow` and `pandas` are not needed, but are handy for exploring the Parquet data.)
+
+## Database
+
+The history lives in MariaDB (10.11 or newer), in a database and user both named `wiki`.
+Any server works; with Docker:
+
+```sh
+docker run -d --name wiki-db -p 127.0.0.1:3306:3306 -e MARIADB_DATABASE=wiki -e MARIADB_USER=wiki \
+  -e MARIADB_PASSWORD=wiki -e MARIADB_RANDOM_ROOT_PASSWORD=1 mariadb:11.4 --max-allowed-packet=64M
+```
+
+Put `MARIADB_PASSWORD=wiki` in the root `.env`, then load the dataset once:
+
+```sh
+.venv/bin/python -m server.load_mariadb
+```
+
+The load took 11 minutes on a laptop and the database uses about 6.5 GB of disk. `--pages 300` loads only the first 300 articles for a quick trial.
+`MARIADB_HOST`, `MARIADB_PORT`, `MARIADB_USER` and `MARIADB_DATABASE` override the defaults
+(`127.0.0.1`, `3306`, `wiki`, `wiki`); `DATA_DIR` overrides the Parquet folder.
+
+`article` is a [system-versioned table](https://mariadb.com/kb/en/system-versioned-tables/)
+with one row per page: its current version. Every earlier version is a history row whose
+period (`row_start` to `row_end`) is the time that text was the live one on Wikipedia, so
+MariaDB itself answers questions about the past:
+
+```sql
+-- the article as it read on a given day
+SELECT title, text FROM article FOR SYSTEM_TIME AS OF '2015-06-01' WHERE page_id = 1150;
+-- every version that was live during a period
+SELECT rev_id, user, row_start FROM article FOR SYSTEM_TIME FROM '2015-01-01' TO '2015-03-01' WHERE page_id = 1150;
+-- the whole history
+SELECT rev_id, row_start, row_end FROM article FOR SYSTEM_TIME ALL WHERE page_id = 1150 ORDER BY row_start;
+```
 
 ## Run
 
@@ -35,8 +69,7 @@ From the repository root (no need to activate the venv):
 
 Windows: `.venv\Scripts\uvicorn server.app:app --host 127.0.0.1 --port 8000`
 
-Startup takes a few seconds: it builds a title index and loads the current text of every
-article for search. Expect the server to use about 1–1.5 GB of RAM. `DATA_DIR` overrides the Parquet folder.
+The server keeps no data in memory; every request queries MariaDB.
 Interactive docs: http://127.0.0.1:8000/docs
 
 `CORS_ORIGINS` is **deprecated** and off by default: the frontend reaches this service
@@ -109,17 +142,19 @@ Add `analyze=true` to the existing endpoint:
 curl 'http://127.0.0.1:8000/changes?title=Talvisota&start=2015-01-01&end=2016-01-01&max_revisions=0&analyze=true'
 ```
 
-The pipeline stays Parquet → DuckDB → revision selection → text diff. Every saved
+The pipeline is MariaDB system-versioned table → revision selection → text diff. Every saved
 revision in `[start, end)` is compared with its predecessor, then reviewed in
-batches through Google's official `google-genai` SDK. The review has two stages to
-save time and quota: a small triage request first answers only "suspicious: yes/no"
-for every passage, and only the suspicious passages get the full analysis below.
+batches. The review has two stages to save time and quota. Triage first asks Gemini's
+decision model (`gemini-decision-1`, the Decisions API) one yes/no question per passage:
+does it need a detailed review? The model returns a probability instead of text, and a
+passage at or above `TRIAGE_THRESHOLD` is suspicious. Only the suspicious passages get the
+full analysis below, through Google's official `google-genai` SDK.
 Hits are queued for full analysis as soon as their triage request returns, so both
 stages run at the same time in one pool of requests.
 Passages that triage clears stay in `changes` with neutral defaults (`category`
 `unclear`, no flags) and a fixed explanation saying no detailed analysis was run.
-Triage is told to answer yes when in doubt, but a subtle edit it clears is not
-analysed further. Reverted edits are included
+The threshold is low and passages that delete text or citations always get the full
+analysis, but a subtle edit that triage clears is not analysed further. Reverted edits are included
 even when the start and end texts are identical. The response adds
 `rhetoric_analysis` with `summary`, `model`, `triageModel`, `partial`, `totalChanges`, and `changes`.
 The reading includes `overallNeutrality`, a short `summary`, and `possibleAgenda`
@@ -167,9 +202,9 @@ the analysis. `truncated` describes that raw list, not review coverage. Revision
 without text changes are checked locally and need no Gemini request. Page creation
 is included even without a baseline. Coverage applies to revisions in this dataset;
 automated detection cannot guarantee that every subtle manipulation is found.
-Omitting `analyze=true` makes no Gemini request. The default model is
-`gemini-3.5-flash-lite` for both stages; override the full analysis with
-`GEMINI_MODEL` and the triage stage with `GEMINI_TRIAGE_MODEL` if needed.
+Omitting `analyze=true` makes no Gemini request. The default models are
+`gemini-decision-1` for triage and `gemini-3.5-flash-lite` for the full analysis; override
+them with `GEMINI_TRIAGE_MODEL` (a decision model) and `GEMINI_MODEL` if needed.
 Quota failures return 429, configuration/connectivity failures 503, invalid model
 responses 502, and timeouts 504, without exposing SDK error bodies or credentials.
 

@@ -1,6 +1,6 @@
 # Wikipedia time travel
 
-React + TypeScript frontend for the Python FastAPI/DuckDB backend and Gemini analysis.
+React + TypeScript frontend for the Python FastAPI/MariaDB backend and Gemini analysis.
 
 From the repository root, start the backend in one terminal:
 
