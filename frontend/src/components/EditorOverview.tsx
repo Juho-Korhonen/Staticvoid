@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react';
 import type { Change, Sources } from '../types';
 import { useLanguage } from '../Language';
-import { bySeverity, editorName, flaggedEditors, isFlagged, isIpAddress } from '../utils/review';
+import { bySeverity, editorName, flaggedEditors, isFlagged, isAnonymous } from '../utils/review';
 import { PagedChanges } from './ChangeList';
 import ExternalLink from './ExternalLink';
 
@@ -34,7 +34,7 @@ export default function EditorOverview({ changes, sources }: { changes: Change[]
                 {selectedUser === user && (
                   <tr>
                     <td colSpan={2}>
-                      {!isIpAddress(user) && (
+                      {!isAnonymous(user) && (
                         <p className="reading-note">
                           <ExternalLink href={`https://fi.wikipedia.org/wiki/Special:Contributions/${encodeURIComponent(user)}`}>{t('contributions')}</ExternalLink>
                         </p>

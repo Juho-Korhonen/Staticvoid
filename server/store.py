@@ -6,7 +6,9 @@ No HTTP here so it can be reused from scripts and tests.
 
 from __future__ import annotations
 
+import hashlib
 import os
+import secrets
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -27,6 +29,11 @@ BUILD_THREADS = 4
 
 META_COLUMNS = ("rev_id", "parent_id", "timestamp", "title", "user", "anonymous",
                 "comment", "minor", "sha1", "bytes")
+
+ANONYMOUS_PREFIX = "anon:"  # the frontend shows these editors as anonymous
+ANONYMOUS_ID_BYTES = 6
+# Keyed, so a pseudonym cannot be matched to an IP address by hashing every address.
+_ANONYMOUS_KEY = secrets.token_bytes(hashlib.blake2b.MAX_KEY_SIZE)
 
 
 class NotFound(Exception):
@@ -70,6 +77,14 @@ def _brief(m: dict | None) -> dict | None:
             "title": m["title"], "bytes": m["bytes"]}
 
 
+def _editor(m: dict) -> str | None:
+    """The user name; an IP editor's address never leaves the server, only a stable pseudonym."""
+    if not (m["anonymous"] and m["user"]):
+        return m["user"]
+    digest = hashlib.blake2b(m["user"].encode(), key=_ANONYMOUS_KEY, digest_size=ANONYMOUS_ID_BYTES)
+    return ANONYMOUS_PREFIX + digest.hexdigest()
+
+
 def _revision_entry(m: dict, prev: dict | None, diff: dict, revert_of: int | None) -> dict:
     prev_bytes = prev["bytes"] if prev else 0
     return {
@@ -78,7 +93,7 @@ def _revision_entry(m: dict, prev: dict | None, diff: dict, revert_of: int | Non
         "parent_id": m["parent_id"],
         "timestamp": iso(m["timestamp"]),
         "title": m["title"],
-        "user": m["user"],
+        "user": _editor(m),
         "anonymous": bool(m["anonymous"]),
         "minor": bool(m["minor"]),
         "comment": m["comment"],

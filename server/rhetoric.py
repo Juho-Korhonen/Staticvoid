@@ -36,6 +36,7 @@ DEFAULT_TRIAGE_MODEL = "gemini-3.5-flash-lite"
 TRIAGE_BATCH_SIZE = 48
 TRIAGE_BATCH_CHARS = 60_000
 TRIAGE_MAX_OUTPUT_TOKENS = 2048
+CITATION_TAG = "<ref"
 LANGUAGES = {"en": "English", "fi": "Finnish", "sv": "Swedish"}  # the interface languages, as named to Gemini
 DEFAULT_LANGUAGE = "en"
 SCREENED_EXPLANATION = {
@@ -348,6 +349,12 @@ def _triage_body(title: str, selected: list[dict]) -> str:
     return json.dumps({"article": title, "changes": inputs}, ensure_ascii=False)
 
 
+def _removes_content(change: dict) -> bool:
+    """Deleted text or citations: decided here, because the edit's own text could talk triage out of it."""
+    old, new = (change["oldText"] or "").lower(), (change["newText"] or "").lower()
+    return bool(old.strip()) and not new.strip() or old.count(CITATION_TAG) > new.count(CITATION_TAG)
+
+
 def _screened(response_text: str | None, selected: list[dict], lang: str) -> list[dict]:
     """Default findings for the changes triage cleared; the others await full analysis."""
     decisions = BatchTriage.model_validate_json(response_text or "").changes
@@ -355,6 +362,7 @@ def _screened(response_text: str | None, selected: list[dict], lang: str) -> lis
     if len(decisions) != len(selected) or indices != {c["changeIndex"] for c in selected}:
         raise BatchError("Gemini returned an incomplete batch. Please try again.")
     suspicious = {d.changeIndex for d in decisions if d.suspicious}
+    suspicious |= {c["changeIndex"] for c in selected if _removes_content(c)}
     return [{
         **c, "category": "unclear", "rhetoricalCategory": None, "toneDelta": 0, "hedgeAdded": False,
         "neutrality": "unchanged", "flags": [], "severity": "none", "explanation": SCREENED_EXPLANATION[lang],
