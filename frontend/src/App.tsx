@@ -9,7 +9,7 @@ import ChangeList from './components/ChangeList';
 import EditorOverview from './components/EditorOverview';
 import { useComparison } from './hooks/useComparison';
 import { useArticleDates } from './hooks/useArticleDates';
-import { useLanguage } from './Language';
+import { useLanguage, type Language } from './Language';
 
 const DEFAULT_SEARCH = { title: 'Suomen sisällissota', from: '2015-01-01', to: '2015-03-01' };
 
@@ -19,15 +19,16 @@ function isValidRange(from: string, to: string, minDate: string | null, maxDate:
 }
 
 export default function App() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [title, setTitle] = useState(DEFAULT_SEARCH.title);
   const [from, setFrom] = useState(DEFAULT_SEARCH.from);
   const [to, setTo] = useState(DEFAULT_SEARCH.to);
   // The chosen article; the review only starts from the "Start review" button.
   const [article, setArticle] = useState(DEFAULT_SEARCH.title);
   // The started review, null until the first start; `requestId` lets Start review re-run an identical review.
-  const [search, setSearch] = useState<typeof DEFAULT_SEARCH & { requestId: number } | null>(null);
-  const { data, loading, error, progress, cancel } = useComparison(search?.title ?? '', search?.from ?? '', search?.to ?? '', search?.requestId);
+  // It keeps the language it was started in: switching language must not start another paid review.
+  const [search, setSearch] = useState<typeof DEFAULT_SEARCH & { language: Language; requestId: number } | null>(null);
+  const { data, loading, error, progress, cancel } = useComparison(search?.title ?? '', search?.from ?? '', search?.to ?? '', search?.language ?? language, search?.requestId);
   const { firstEdit, error: datesError } = useArticleDates(article);
   // Results and errors of a review of another article are not shown under this one.
   const reviewIsOfArticle = search?.title === article;
@@ -42,7 +43,7 @@ export default function App() {
 
   function startReview() {
     if (!validRange) return;
-    setSearch((prev) => ({ title: article, from, to, requestId: (prev?.requestId ?? 0) + 1 }));
+    setSearch((prev) => ({ title: article, from, to, language, requestId: (prev?.requestId ?? 0) + 1 }));
   }
 
   function chooseArticle(chosen: string) {

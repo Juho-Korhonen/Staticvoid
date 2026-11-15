@@ -323,7 +323,7 @@ class TriageTests(unittest.TestCase):
         self.assertEqual(self.generate.call_count, 1)
         self.assertEqual(result["flaggedChanges"], 0)
         self.assertEqual(result["coverage"]["reviewedChanges"], 5)
-        self.assertEqual({c["explanation"] for c in result["changes"]}, {SCREENED_EXPLANATION})
+        self.assertEqual({c["explanation"] for c in result["changes"]}, {SCREENED_EXPLANATION["en"]})
 
     def test_only_suspicious_changes_get_full_analysis(self):
         self.suspicious = {1, 3}
@@ -361,6 +361,14 @@ class TriageTests(unittest.TestCase):
         result = analyze_changes("Test", self.source)
         self.assertEqual([c["changeIndex"] for c in result["changes"]], list(range(5)))
         self.assertGreater(result["coverage"]["completedBatches"], 1)
+
+    def test_review_is_written_in_the_requested_language(self):
+        self.decisions = lambda changes: SimpleNamespace(text=json.dumps({"changes": [
+            {"changeIndex": c["changeIndex"], "suspicious": c["changeIndex"] == 0} for c in changes]}))
+        events = list(iter_analysis("Test", self.source, lang="fi"))
+        explanations = {c["explanation"] for c in events[-1]["analysis"]["changes"][1:]}
+        self.assertEqual(explanations, {SCREENED_EXPLANATION["fi"]})
+        self.assertIn("in Finnish", self.generate.call_args.kwargs["config"].system_instruction)
 
 
 if __name__ == "__main__":

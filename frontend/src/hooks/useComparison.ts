@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { compareArticle } from '../services/articleService';
 import type { AnalysisProgress, Comparison } from '../types';
+import type { Language } from '../Language';
 
 // Debounces date edits and React StrictMode's replay before making paid requests.
 const DEBOUNCE_MS = 400;
@@ -15,7 +16,7 @@ interface State {
 const IDLE: State = { data: null, loading: false, error: null, progress: null };
 
 /** Loads the comparison whenever the article, either date or `requestId` changes; an empty title loads nothing. */
-export function useComparison(title: string, from: string, to: string, requestId = 0): State & { cancel: () => void } {
+export function useComparison(title: string, from: string, to: string, language: Language, requestId = 0): State & { cancel: () => void } {
   const [state, setState] = useState<State>(IDLE);
   const activeRequest = useRef<AbortController | null>(null);
 
@@ -30,7 +31,7 @@ export function useComparison(title: string, from: string, to: string, requestId
 
     setState({ ...IDLE, loading: true, progress: { stage: 'loading' } });
     const timer = window.setTimeout(() => {
-      compareArticle(title, from, to, controller.signal, (progress) => {
+      compareArticle(title, from, to, language, controller.signal, (progress) => {
         if (isCurrent()) setState((prev) => ({ ...prev, progress }));
       })
         .then((data) => {
@@ -45,7 +46,7 @@ export function useComparison(title: string, from: string, to: string, requestId
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [title, from, to, requestId]);
+  }, [title, from, to, language, requestId]);
 
   function cancel() {
     activeRequest.current?.abort();

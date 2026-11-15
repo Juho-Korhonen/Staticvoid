@@ -19,7 +19,7 @@ from fastapi.responses import StreamingResponse
 
 from .dates import parse_when
 from .diff import DEFAULT_CONTEXT_LINES
-from .rhetoric import AnalysisError, iter_analysis, revision_changes
+from .rhetoric import DEFAULT_LANGUAGE, LANGUAGES, AnalysisError, iter_analysis, revision_changes
 from .store import DEFAULT_LIMIT, DEFAULT_MAX_REVISIONS, ChangesStore, NotFound
 from .wiki import revision_sources
 
@@ -112,7 +112,7 @@ def _analyzed(result: dict, analysis: dict, max_revisions: int) -> dict:
     return result
 
 
-def _analysis_events(load_history, max_revisions: int):
+def _analysis_events(load_history, max_revisions: int, lang: str):
     """Progress events, then exactly one `complete` or `error` event."""
     if not _analysis_slots.acquire(blocking=False):
         yield {"type": "error", "status": HTTPStatus.TOO_MANY_REQUESTS, "detail": BUSY}
@@ -121,7 +121,7 @@ def _analysis_events(load_history, max_revisions: int):
         yield {"type": "progress", "stage": "loading"}
         result = load_history()
         context = {"revisions": result["summary"]["revisions"], "editors": result["summary"]["editors"]}
-        for event in iter_analysis(result["title"], revision_changes(result), context):
+        for event in iter_analysis(result["title"], revision_changes(result), context, lang):
             if event["type"] == "complete":
                 yield {"type": "complete", "result": _analyzed(result, event["analysis"], max_revisions)}
             else:
@@ -165,11 +165,14 @@ def changes(
     context_lines: int = Query(DEFAULT_CONTEXT_LINES, ge=0, le=CONTEXT_LINES_MAX),
     analyze: bool = False,
     stream: bool = False,
+    lang: str = DEFAULT_LANGUAGE,
     store: ChangesStore = Depends(get_store),
 ):
     if page_id is None and not (title and title.strip()):
         raise HTTPException(HTTPStatus.BAD_REQUEST, "title or page_id required")
     start_dt, end_dt = _parse_range(start, end)
+    if lang not in LANGUAGES:
+        raise HTTPException(HTTPStatus.BAD_REQUEST, f"lang must be one of: {', '.join(LANGUAGES)}")
     if stream and not analyze:
         raise HTTPException(HTTPStatus.BAD_REQUEST, "stream requires analyze=true")
 
@@ -186,5 +189,5 @@ def changes(
         except NotFound as exc:
             raise HTTPException(HTTPStatus.NOT_FOUND, str(exc)) from None
 
-    events = _analysis_events(load_history, max_revisions)
+    events = _analysis_events(load_history, max_revisions, lang)
     return _ndjson(events) if stream else _single_result(events)

@@ -1,4 +1,5 @@
 import type { AnalysisProgress, AnalyzedArticle, Comparison, PageSearchResult } from '../types';
+import type { Language } from '../Language';
 
 const API_URL = '/api';
 const ISO_DATE_LENGTH = 'YYYY-MM-DD'.length;
@@ -70,13 +71,14 @@ export async function compareArticle(
   title: string,
   from: string,
   to: string,
+  language: Language,
   signal?: AbortSignal,
   onProgress?: (progress: AnalysisProgress) => void
 ): Promise<Comparison> {
   const params = new URLSearchParams({
     title, start: from, end: to,
     max_revisions: '0', // the UI shows only the review, not the raw revision diffs
-    analyze: 'true', stream: 'true',
+    analyze: 'true', stream: 'true', lang: language,
   });
   const response = await request(`/changes?${params}`, signal);
   if (!response.body) throw new Error('The analysis stream is unavailable. No complete review was received.');

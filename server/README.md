@@ -91,6 +91,7 @@ wikitext instead.
 - `title` (case-insensitive, any historical title) **or** `page_id`.
 - `max_revisions` (default 200): keep only the newest N revisions in the range; `truncated: true` when cut.
 - `context_lines` (default 2): context in `unified_diff`.
+- `lang` (default `en`): language of the Gemini review, see below.
 
 Errors: `422` (missing or out-of-range params), `400` (bad date, start ≥ end, neither
 `title` nor `page_id`), `404` (unknown article).
@@ -141,7 +142,8 @@ ordinary factual or formatting changes are not automatically suspicious.
 using schema-constrained IDs and supplied by the server. `sources` links to the exact earlier/later Wikipedia
 revisions and their diff; these URLs are built from dataset IDs, never generated
 by Gemini. These sources support wording comparisons, not historical fact checks.
-Positive tone does not imply neutrality. Explanations are English.
+Positive tone does not imply neutrality. `lang` (`en`, `fi` or `sv`; default `en`) sets the
+language of `explanation`, `possibleAgenda` and `framingChanges`; error messages stay English.
 JSON output is validated with Pydantic. Requests use a fixed seed, so reviewing the same
 period again gives the same verdicts; a different period can batch the edits differently
 and shift borderline ones.
