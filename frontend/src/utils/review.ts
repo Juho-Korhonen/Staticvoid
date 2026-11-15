@@ -12,8 +12,9 @@ export function isIpAddress(user: string): boolean {
   }
 }
 
-export function editorName(user: string): string {
-  return isIpAddress(user) ? '[Anonymous]' : user;
+/** IP addresses are shown as `anonymous`, the translated label. */
+export function editorName(user: string, anonymous: string): string {
+  return isIpAddress(user) ? anonymous : user;
 }
 
 export function isFlagged(change: Change): boolean {

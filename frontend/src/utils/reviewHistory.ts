@@ -32,9 +32,9 @@ function nextPeriod(date: Date, grouping: Grouping, yearStep: number): Date {
   return next;
 }
 
-function makeBuckets(start: number, end: number, grouping: Grouping, yearStep: number): Bucket[] {
+function makeBuckets(start: number, end: number, grouping: Grouping, yearStep: number, locale: string): Bucket[] {
   const buckets: Bucket[] = [];
-  const format = new Intl.DateTimeFormat('en-GB', {
+  const format = new Intl.DateTimeFormat(locale, {
     timeZone: 'UTC', year: 'numeric', month: 'short',
     ...(grouping === 'day' || grouping === 'week' ? { day: 'numeric' as const } : {}),
   });
@@ -51,7 +51,7 @@ function makeBuckets(start: number, end: number, grouping: Grouping, yearStep: n
 }
 
 /** Calendar buckets in UTC; count a revision once per category, even across split passages. */
-export function reviewHistory(changes: Change[], from: string, to: string) {
+export function reviewHistory(changes: Change[], from: string, to: string, locale: string) {
   const start = Date.parse(`${from}T00:00:00Z`);
   const end = Date.parse(`${to}T00:00:00Z`);
   if (!(start < end)) return null;
@@ -60,7 +60,7 @@ export function reviewHistory(changes: Change[], from: string, to: string) {
   let yearStep = 1;
   for (grouping of GROUPINGS) {
     if (grouping === 'year') yearStep = Math.ceil((new Date(end - 1).getUTCFullYear() - new Date(start).getUTCFullYear() + 1) / MAX_BUCKETS);
-    buckets = makeBuckets(start, end, grouping, yearStep);
+    buckets = makeBuckets(start, end, grouping, yearStep, locale);
     if (buckets.length <= MAX_BUCKETS) break;
   }
 
@@ -80,5 +80,5 @@ export function reviewHistory(changes: Change[], from: string, to: string) {
     categories.add(change.category);
     bucket.counts[change.category] = (bucket.counts[change.category] ?? 0) + 1;
   }
-  return { buckets, categories: [...categories], grouping: yearStep > 1 ? `${yearStep}-year` : grouping, totalEdits: revisions.size, undated };
+  return { buckets, categories: [...categories], grouping, yearStep, totalEdits: revisions.size, undated };
 }
