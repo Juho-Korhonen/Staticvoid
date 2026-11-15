@@ -6,6 +6,7 @@ import ReviewProgress from './components/ReviewProgress';
 import Summary from './components/Summary';
 import ReviewHistory from './components/ReviewHistory';
 import ChangeList from './components/ChangeList';
+import EditorOverview from './components/EditorOverview';
 import { useComparison } from './hooks/useComparison';
 import { useArticleDates } from './hooks/useArticleDates';
 
@@ -31,9 +32,9 @@ export default function App() {
   const today = new Date().toISOString().split('T')[0];
   const validRange = isValidRange(from, to, firstEdit, today);
   // The result section that is shown; null shows neither.
-  const [view, setView] = useState<'history' | 'review' | null>(null);
+  const [view, setView] = useState<'history' | 'review' | 'editors' | null>(null);
 
-  function toggleView(next: 'history' | 'review') {
+  function toggleView(next: 'history' | 'review' | 'editors') {
     setView((current) => (current === next ? null : next));
   }
 
@@ -103,8 +104,10 @@ export default function App() {
             <div className="result-views">
               <button type="button" aria-pressed={view === 'history'} onClick={() => toggleView('history')}>history</button>
               <button type="button" aria-pressed={view === 'review'} onClick={() => toggleView('review')}>full review</button>
+              <button type="button" aria-pressed={view === 'editors'} onClick={() => toggleView('editors')}>suspicious editors</button>
             </div>
             {view === 'history' && search && <ReviewHistory changes={data.analysis.changes} from={search.from} to={search.to} />}
+            {view === 'editors' && <EditorOverview changes={data.analysis.changes} sources={data.analysis.sources} />}
             {view === 'review' && (
               <>
                 <h2 id="changes-heading">Evidence from the revisions</h2>

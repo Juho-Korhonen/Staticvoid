@@ -110,6 +110,13 @@ class EvidenceTests(unittest.TestCase):
             with self.assertRaises(AnalysisError):
                 self.analyze()
 
+    def test_invalid_single_passage_is_requested_again(self):
+        self.generate.side_effect = [SimpleNamespace(text="invalid JSON"),
+                                     SimpleNamespace(text=json.dumps(self.response))]
+        result = analyze_changes("Test", self.source)
+        self.assertEqual(result["coverage"]["reviewedChanges"], 1)
+        self.assertEqual(self.generate.call_count, 2)
+
     def test_unchanged_text_needs_no_request_or_key(self):
         with patch.dict(os.environ, {"GEMINI_API_KEY": ""}):
             result = analyze_changes("Test", [])
@@ -258,6 +265,7 @@ class EvidenceTests(unittest.TestCase):
         for rev_id, before_id, before, after, revert in ((11, 10, good, bad, False), (12, 11, bad, good, True)):
             revisions.append({
                 'rev_id': rev_id, 'before_rev_id': before_id, 'timestamp': '2015-01-02T00:00:00Z',
+                'user': 'Original editor' if not revert else 'Repair editor',
                 'comment': '', 'is_revert': revert, 'revert_to_rev_id': 10 if revert else None,
                 **diff_texts(before, after),
             })
@@ -271,6 +279,7 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual([c['revision']['id'] for c in sent], [11, 12])
         self.assertTrue(sent[1]['revision']['isRevert'])
         self.assertEqual(result['coverage']['reviewedRevisions'], 2)
+        self.assertEqual([c['revision']['user'] for c in result['changes']], ['Original editor', 'Repair editor'])
         self.assertEqual(result['changes'][0]['sources']['diff'], 'https://fi.wikipedia.org/w/index.php?oldid=10&diff=11')
         self.assertEqual(result['changes'][1]['sources']['diff'], 'https://fi.wikipedia.org/w/index.php?oldid=11&diff=12')
 

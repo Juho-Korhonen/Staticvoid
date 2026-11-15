@@ -2,7 +2,7 @@ import { categoryLabels, rhetoricalCategoryLabels } from '../labels';
 import type { Change, Sources } from '../types';
 import type { Token } from '../utils/wikitext';
 import { changedText } from '../utils/changedText';
-import { isFlagged } from '../utils/review';
+import { editorName, isFlagged } from '../utils/review';
 import ExternalLink from './ExternalLink';
 import WikiText from './WikiText';
 
@@ -41,7 +41,7 @@ export default function ChangeItem({ change, sources }: { change: Change; source
           {categoryLabels[change.category] ?? 'Unclassified change'}
           {change.category === 'rhetorical_change' && change.rhetoricalCategory && ` · ${rhetoricalCategoryLabels[change.rhetoricalCategory]}`}
         </strong>
-        {revision && <time className="reading-note" dateTime={revision.timestamp}>{editTime(revision.timestamp)}{revision.isRevert && ' · revert'}</time>}
+        {revision && <span className="reading-note">{revision.user && `${editorName(revision.user)} · `}<time dateTime={revision.timestamp}>{editTime(revision.timestamp)}</time>{revision.isRevert && ' · revert'}</span>}
       </header>
       <p className="change-explanation">{change.explanation}</p>
       {change.possibleAgenda && <p className="reading-note">Possible framing goal: {change.possibleAgenda}</p>}

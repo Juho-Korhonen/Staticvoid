@@ -55,7 +55,7 @@ export interface Change {
   possibleAgenda: string | null;
   segmentIndex: number;
   segmentCount: number;
-  revision?: { id: number; beforeId: number | null; timestamp: string; isRevert: boolean };
+  revision?: { id: number; beforeId: number | null; timestamp: string; isRevert: boolean; user?: string | null };
   sources?: Sources;
 }
 

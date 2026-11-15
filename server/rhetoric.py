@@ -31,12 +31,14 @@ SEGMENT_OVERLAP = 200
 PASSAGE_WIDTH = 200
 MAX_OUTPUT_TOKENS = 8192
 REQUEST_TIMEOUT_MS = 60_000
+REQUEST_SEED = 1  # a fixed seed makes repeated reviews of the same edits agree; the model ignores temperature
 DEFAULT_TRIAGE_MODEL = "gemini-3.5-flash-lite"
 TRIAGE_BATCH_SIZE = 48
 TRIAGE_BATCH_CHARS = 60_000
 TRIAGE_MAX_OUTPUT_TOKENS = 2048
 SCREENED_EXPLANATION = "Screened as not suspicious; no detailed analysis was run."
-REQUEST_ATTEMPTS = 1  # failed batches are retried by splitting them instead
+REQUEST_ATTEMPTS = 4  # the SDK retries rate limits, server errors and timeouts with backoff
+SINGLE_PASSAGE_RETRIES = 2  # a batch of one cannot be split, so it is requested again
 SEVERITY_ORDER = ("high", "medium", "low", "none")
 _SIDES = (("before", "oldText", "evidenceBeforeId"), ("after", "newText", "evidenceAfterId"))
 
@@ -167,6 +169,7 @@ def revision_changes(result: dict) -> list[dict]:
                 "revision": {
                     "id": revision["rev_id"], "beforeId": revision["before_rev_id"],
                     "timestamp": revision["timestamp"], "comment": revision["comment"],
+                    "user": revision.get("user"),
                     "isRevert": revision["is_revert"], "revertToRevId": revision["revert_to_rev_id"],
                 },
                 "sources": revision_sources(revision["before_rev_id"], revision["rev_id"]),
@@ -301,7 +304,7 @@ def _generate(client, model: str, contents: str, instruction: str, schema: dict,
             model=model, contents=contents,
             config=types.GenerateContentConfig(
                 system_instruction=instruction, response_mime_type="application/json",
-                response_json_schema=schema, max_output_tokens=max_output_tokens,
+                response_json_schema=schema, max_output_tokens=max_output_tokens, seed=REQUEST_SEED,
             ),
         )
         return parse(response.text)
@@ -410,12 +413,13 @@ def _client() -> genai.Client:
 def _review_batches(triage, analyze, progress: _Progress):
     """Triage every batch concurrently; its hits join the same job pool for full analysis.
 
-    Rejected batches are split and retried, so no change is omitted.
+    Rejected batches are split, or requested again when they hold one passage, so no change is omitted.
     """
     batches = progress.batches
     queued = deque(range(len(batches)))
     analysis_jobs = set()  # indices of batches awaiting full analysis; the others await triage
     active = {}
+    retries = Counter()  # batch index -> repeated requests of its single passage
     with ThreadPoolExecutor(max_workers=BATCH_CONCURRENCY) as executor:
         try:
             while queued or active:
@@ -438,6 +442,10 @@ def _review_batches(triage, analyze, progress: _Progress):
                                 analysis_jobs.add(len(batches) - 1)
                             queued.extendleft((len(batches) - 1, index))
                             yield progress.event()
+                            continue
+                        if isinstance(exc, BatchError) and retries[index] < SINGLE_PASSAGE_RETRIES:
+                            retries[index] += 1
+                            queued.appendleft(index)
                             continue
                         raise AnalysisError(
                             f"Analysis incomplete: {len(progress.reviewed)}/{len(progress.prepared)} passages reviewed. {exc}",

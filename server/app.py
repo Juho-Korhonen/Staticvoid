@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 from contextlib import asynccontextmanager
 from datetime import datetime
 from http import HTTPStatus
@@ -29,7 +30,10 @@ TEXT_LIMIT_MAX = 100
 QUERY_MAX_LENGTH = 500
 MAX_REVISIONS_MAX = 5000
 CONTEXT_LINES_MAX = 20
+MAX_CONCURRENT_ANALYSES = 4  # each runs many Gemini requests and holds its revisions in memory
 INCOMPLETE_ANALYSIS = "Analysis did not complete. Please retry; no complete review is available."
+BUSY = "Too many reviews are running. Please try again in a moment."
+_analysis_slots = threading.BoundedSemaphore(MAX_CONCURRENT_ANALYSES)
 
 
 @asynccontextmanager
@@ -65,7 +69,7 @@ def health():
 
 @app.get("/pages/search")
 def search(
-    q: str = Query(..., min_length=1),
+    q: str = Query(..., min_length=1, max_length=QUERY_MAX_LENGTH),
     limit: int = Query(DEFAULT_LIMIT, ge=1, le=SEARCH_LIMIT_MAX),
     store: ChangesStore = Depends(get_store),
 ):
@@ -110,8 +114,11 @@ def _analyzed(result: dict, analysis: dict, max_revisions: int) -> dict:
 
 def _analysis_events(load_history, max_revisions: int):
     """Progress events, then exactly one `complete` or `error` event."""
-    yield {"type": "progress", "stage": "loading"}
+    if not _analysis_slots.acquire(blocking=False):
+        yield {"type": "error", "status": HTTPStatus.TOO_MANY_REQUESTS, "detail": BUSY}
+        return
     try:
+        yield {"type": "progress", "stage": "loading"}
         result = load_history()
         context = {"revisions": result["summary"]["revisions"], "editors": result["summary"]["editors"]}
         for event in iter_analysis(result["title"], revision_changes(result), context):
@@ -127,6 +134,8 @@ def _analysis_events(load_history, max_revisions: int):
         # A failed stream must not look like an empty or completed review.
         logger.exception("analysis failed")
         yield {"type": "error", "status": HTTPStatus.INTERNAL_SERVER_ERROR, "detail": INCOMPLETE_ANALYSIS}
+    finally:
+        _analysis_slots.release()
 
 
 def _ndjson(events) -> StreamingResponse:
