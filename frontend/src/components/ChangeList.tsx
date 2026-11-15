@@ -8,7 +8,7 @@ const PAGE_SIZE = 10;
 const LOAD_AHEAD_PX = 200;
 const MemoChangeItem = memo(ChangeItem);
 
-function PagedChanges({ changes, sources, labelledBy }: { changes: Change[]; sources: Sources; labelledBy?: string }) {
+export function PagedChanges({ changes, sources, labelledBy }: { changes: Change[]; sources: Sources; labelledBy?: string }) {
   const [count, setCount] = useState(PAGE_SIZE);
   const more = useRef<HTMLButtonElement>(null);
   const shown = Math.min(count, changes.length);

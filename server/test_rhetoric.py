@@ -258,6 +258,7 @@ class EvidenceTests(unittest.TestCase):
         for rev_id, before_id, before, after, revert in ((11, 10, good, bad, False), (12, 11, bad, good, True)):
             revisions.append({
                 'rev_id': rev_id, 'before_rev_id': before_id, 'timestamp': '2015-01-02T00:00:00Z',
+                'user': 'Original editor' if not revert else 'Repair editor',
                 'comment': '', 'is_revert': revert, 'revert_to_rev_id': 10 if revert else None,
                 **diff_texts(before, after),
             })
@@ -271,6 +272,7 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual([c['revision']['id'] for c in sent], [11, 12])
         self.assertTrue(sent[1]['revision']['isRevert'])
         self.assertEqual(result['coverage']['reviewedRevisions'], 2)
+        self.assertEqual([c['revision']['user'] for c in result['changes']], ['Original editor', 'Repair editor'])
         self.assertEqual(result['changes'][0]['sources']['diff'], 'https://fi.wikipedia.org/w/index.php?oldid=10&diff=11')
         self.assertEqual(result['changes'][1]['sources']['diff'], 'https://fi.wikipedia.org/w/index.php?oldid=11&diff=12')
 

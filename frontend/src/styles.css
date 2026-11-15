@@ -111,14 +111,17 @@ h2 { font-size: 1.45em; margin: 22px 0 10px; padding-bottom: 3px; border-bottom:
 .history-legend button { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 3px; color: var(--text); cursor: pointer; font-size: 12px; }
 .history-legend button[aria-pressed="false"] { opacity: .5; text-decoration: line-through; }
 .history-swatch { width: 10px; height: 10px; border-radius: 50%; }
-.history-plot, .history-table { overflow-x: auto; }
+.history-plot, .history-table, .editor-overview { overflow-x: auto; }
 .history-plot svg { display: block; width: 100%; min-width: 600px; }
 .history-plot text { fill: var(--muted); font: 13px Arial, sans-serif; }
 .history-grid { stroke: var(--disabled); stroke-dasharray: 3 4; }
 .history-counts summary { cursor: pointer; color: var(--blue); font-size: 12px; }
-.history-table table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
-.history-table th, .history-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-soft); text-align: left; }
-.history-table caption { text-align: left; color: var(--muted); margin-bottom: 6px; }
+.history-table table, .editor-overview table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+.history-table th, .history-table td, .editor-overview th, .editor-overview td { padding: 6px 8px; border-bottom: 1px solid var(--line-soft); text-align: left; }
+.history-table caption, .editor-overview caption { text-align: left; color: var(--muted); margin-bottom: 6px; }
+.editor-row { cursor: pointer; }
+.editor-row:hover, .editor-row:focus-within { background: var(--blue-soft); }
+.editor-toggle { padding: 0; border: 0; background: transparent; color: var(--blue); font-weight: inherit; text-align: left; cursor: pointer; }
 
 @media (max-width: 640px) {
   .site-header { gap: 20px; padding-right: 16px; padding-left: 16px; }
