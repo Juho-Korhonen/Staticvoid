@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useTitleSuggestions } from '../hooks/useTitleSuggestions';
+import { useLanguage } from '../Language';
 
 interface Props {
   value: string;
@@ -13,6 +14,7 @@ interface Props {
 /** Article title input with autocomplete suggestions. */
 export default function ArticleSearch({ value, selectedTitle, disabled, onChange, onSubmit, onChoose }: Props) {
   const [open, setOpen] = useState(false);
+  const { t } = useLanguage();
   const { suggestions, loading } = useTitleSuggestions(value, selectedTitle);
   const expanded = open && (loading || suggestions.length > 0);
 
@@ -29,13 +31,13 @@ export default function ArticleSearch({ value, selectedTitle, disabled, onChange
   return (
     <form className="article-search" onSubmit={submit}>
       <div className="article-title-field">
-        <label htmlFor="article-title">Search an article</label>
+        <label htmlFor="article-title">{t('searchArticle')}</label>
         <span className="article-search-row">
           <span className="article-search-input-wrap">
             <input
               id="article-title"
               value={value}
-              placeholder="Search an article"
+              placeholder={t('searchArticle')}
               autoComplete="off"
               aria-autocomplete="list"
               aria-expanded={expanded}
@@ -48,19 +50,19 @@ export default function ArticleSearch({ value, selectedTitle, disabled, onChange
             />
             {expanded && (
               <ul id="article-suggestions" className="article-suggestions" role="listbox">
-                {loading && <li className="suggestions-status" role="option" aria-disabled="true">Searching…</li>}
+                {loading && <li className="suggestions-status" role="option" aria-disabled="true">{t('searching')}</li>}
                 {suggestions.map((result) => (
                   <li key={result.page_id} role="option" aria-selected="false">
                     <button type="button" onClick={() => choose(result.title)}>
                       {result.title}
-                      <small>{result.n_versions.toLocaleString()} saved versions</small>
+                      <small>{result.n_versions.toLocaleString()} {t('savedVersions')}</small>
                     </button>
                   </li>
                 ))}
               </ul>
             )}
           </span>
-          <button className="compare-button" type="submit" disabled={disabled}>Search</button>
+          <button className="compare-button" type="submit" disabled={disabled}>{t('search')}</button>
         </span>
       </div>
     </form>

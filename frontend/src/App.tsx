@@ -9,6 +9,7 @@ import ChangeList from './components/ChangeList';
 import EditorOverview from './components/EditorOverview';
 import { useComparison } from './hooks/useComparison';
 import { useArticleDates } from './hooks/useArticleDates';
+import { useLanguage } from './Language';
 
 const DEFAULT_SEARCH = { title: 'Suomen sisällissota', from: '2015-01-01', to: '2015-03-01' };
 
@@ -18,6 +19,7 @@ function isValidRange(from: string, to: string, minDate: string | null, maxDate:
 }
 
 export default function App() {
+  const { t } = useLanguage();
   const [title, setTitle] = useState(DEFAULT_SEARCH.title);
   const [from, setFrom] = useState(DEFAULT_SEARCH.from);
   const [to, setTo] = useState(DEFAULT_SEARCH.to);
@@ -71,7 +73,7 @@ export default function App() {
           onChoose={chooseSuggestion}
         />
         <h1>{article}</h1>
-        <p className="subtitle">Track who edits Finnish Wikipedia and uncover changes that could distort facts, spread propaganda, or manipulate public information.</p>
+        <p className="subtitle">{t('compareSubtitle')}</p>
 
         <DateRangePicker
           from={from}
@@ -85,15 +87,15 @@ export default function App() {
           onStart={startReview}
         />
 
-        {datesError && <p className="message error" role="alert">Could not load article dates: {datesError}</p>}
+        {datesError && <p className="message error" role="alert">{t('dateError')} {datesError}</p>}
         {from && to && firstEdit && !validRange && (
           <p className="message validation" role="status">
-            Choose dates between {firstEdit} and {today}, with the first date earlier than the second.
+            {t('dateValidation')} {firstEdit} {t('and')} {today}.
           </p>
         )}
         {error && reviewIsOfArticle && (
           <div className="message error" role="alert">
-            <p>Could not load the comparison: {error}</p>
+            <p>{t('comparisonError')} {error}</p>
           </div>
         )}
         {loading && <ReviewProgress progress={progress} onCancel={cancel} />}
@@ -102,15 +104,15 @@ export default function App() {
           <div aria-live="polite">
             <Summary comparison={data} />
             <div className="result-views">
-              <button type="button" aria-pressed={view === 'history'} onClick={() => toggleView('history')}>history</button>
-              <button type="button" aria-pressed={view === 'review'} onClick={() => toggleView('review')}>full review</button>
-              <button type="button" aria-pressed={view === 'editors'} onClick={() => toggleView('editors')}>suspicious editors</button>
+              <button type="button" aria-pressed={view === 'history'} onClick={() => toggleView('history')}>{t('history')}</button>
+              <button type="button" aria-pressed={view === 'review'} onClick={() => toggleView('review')}>{t('fullReview')}</button>
+              <button type="button" aria-pressed={view === 'editors'} onClick={() => toggleView('editors')}>{t('suspiciousEditors')}</button>
             </div>
             {view === 'history' && search && <ReviewHistory changes={data.analysis.changes} from={search.from} to={search.to} />}
             {view === 'editors' && <EditorOverview changes={data.analysis.changes} sources={data.analysis.sources} />}
             {view === 'review' && (
               <>
-                <h2 id="changes-heading">Evidence from the revisions</h2>
+                <h2 id="changes-heading">{t('evidence')}</h2>
                 <ChangeList analysis={data.analysis} />
               </>
             )}

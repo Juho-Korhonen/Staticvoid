@@ -1,3 +1,5 @@
+import LanguageSwitcher from './LanguageSwitcher';
+
 export default function Header() {
   return (
     <header className="site-header">
@@ -11,6 +13,7 @@ export default function Header() {
           <path className="flame-inner" d="M21 27c1 4-3 5-3 9 0 3 2 5 5 5s5-2 5-5c0-3-2-5-3-8-1 2-2 3-2 4-2-2-1-4-2-5Z" />
         </svg>
       </span>
+      <LanguageSwitcher />
     </header>
   );
 }
