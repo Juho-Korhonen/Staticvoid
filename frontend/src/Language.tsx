@@ -39,7 +39,6 @@ const translations = {
     'category.formatting': 'Formatting / spelling',
     'category.repair': 'Repair / correction',
     'category.unclear': 'Unclear change',
-   
     'rhetoric.loaded_language': 'Loaded language',
     'rhetoric.blame_or_credit': 'Blame or credit',
     'rhetoric.downplaying_or_exaggeration': 'Downplaying or exaggeration',
@@ -73,7 +72,6 @@ const translations = {
     chartTitle: 'Suspicious edits over time, by category',
     chartDescription: 'Time on the horizontal axis; number of distinct suspicious edits per {grouping} on the vertical axis. Exact counts are available in the table below.',
     chartAxis: 'Suspicious edits per {grouping}',
-    timeAxis: 'Time (UTC)',
     pointTitle: '{period}: {category} — {count} edits',
     historyCaveat: 'Each edit counts once per category and may appear in multiple categories. Quiet periods show zero; the first and last periods may be partial.',
     viewCounts: 'View counts by period',
@@ -118,7 +116,6 @@ const translations = {
     'category.formatting': 'Muotoilu / oikeinkirjoitus',
     'category.repair': 'Korjaus',
     'category.unclear': 'Epäselvä muutos',
-   
     'rhetoric.loaded_language': 'Latautunut kieli',
     'rhetoric.blame_or_credit': 'Syyllistäminen tai ansion antaminen',
     'rhetoric.downplaying_or_exaggeration': 'Vähättely tai liioittelu',
@@ -152,7 +149,6 @@ const translations = {
     chartTitle: 'Epäilyttävät muokkaukset ajan mittaan luokittain',
     chartDescription: 'Vaaka-akselilla aika; pystyakselilla erillisten epäilyttävien muokkausten määrä (ryhmittely: {grouping}). Tarkat määrät ovat alla olevassa taulukossa.',
     chartAxis: 'Epäilyttäviä muokkauksia / {grouping}',
-    timeAxis: 'Aika (UTC)',
     pointTitle: '{period}: {category} — {count} muokkausta',
     historyCaveat: 'Jokainen muokkaus lasketaan kerran luokkaa kohden, ja se voi kuulua useaan luokkaan. Hiljaisilla jaksoilla arvo on nolla; ensimmäinen ja viimeinen jakso voivat olla vajaita.',
     viewCounts: 'Näytä määrät jaksoittain',
@@ -197,7 +193,6 @@ const translations = {
     'category.formatting': 'Formatering / stavning',
     'category.repair': 'Reparation / rättelse',
     'category.unclear': 'Oklar ändring',
-   
     'rhetoric.loaded_language': 'Laddat språk',
     'rhetoric.blame_or_credit': 'Skuld eller förtjänst',
     'rhetoric.downplaying_or_exaggeration': 'Förminskning eller överdrift',
@@ -231,7 +226,6 @@ const translations = {
     chartTitle: 'Misstänkta redigeringar över tid, per kategori',
     chartDescription: 'Tid på den vågräta axeln; antal enskilda misstänkta redigeringar per {grouping} på den lodräta axeln. Exakta antal finns i tabellen nedan.',
     chartAxis: 'Misstänkta redigeringar per {grouping}',
-    timeAxis: 'Tid (UTC)',
     pointTitle: '{period}: {category} — {count} redigeringar',
     historyCaveat: 'Varje redigering räknas en gång per kategori och kan förekomma i flera kategorier. Lugna perioder visar noll; den första och sista perioden kan vara ofullständiga.',
     viewCounts: 'Visa antal per period',

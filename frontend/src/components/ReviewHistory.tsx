@@ -64,7 +64,6 @@ export default function ReviewHistory({ changes, from, to }: { changes: Change[]
               {dateIndices.map((index) => (
                 <text key={index} x={x(index)} y={HEIGHT - MARGIN.bottom + 22} textAnchor="middle">{buckets[index].label}</text>
               ))}
-              <text x={WIDTH / 2} y={HEIGHT - 4} textAnchor="middle">{t('timeAxis')}</text>
               {categories.filter((category) => !hidden.includes(category)).map((category) => (
                 <g key={category} stroke={COLORS[category]}>
                   <polyline fill="none" strokeWidth="2.5" points={buckets.map((bucket, index) => `${x(index)},${y(bucket.counts[category] ?? 0)}`).join(' ')} />
