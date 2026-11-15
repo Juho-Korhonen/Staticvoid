@@ -11,7 +11,7 @@ import { useComparison } from './hooks/useComparison';
 import { useArticleDates } from './hooks/useArticleDates';
 import { useLanguage, type Language } from './Language';
 
-const DEFAULT_SEARCH = { title: 'Suomen sisällissota', from: '2015-01-01', to: '2015-03-01' };
+const DEFAULT_SEARCH = { title: 'Suomen sisällissota', from: '2015-01-01', to: '2018-01-01' };
 
 function isValidRange(from: string, to: string, minDate: string | null, maxDate: string): boolean {
   const start = Date.parse(from), end = Date.parse(to);
