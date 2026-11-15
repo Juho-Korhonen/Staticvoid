@@ -15,7 +15,6 @@ export default function Header() {
             </svg>
           </span>
         </div>
-        <small>{t('tagline')}</small>
       </div>
       <LanguageSwitcher />
     </header>

@@ -31,11 +31,11 @@ export default function ArticleSearch({ value, selectedTitle, disabled, onChange
   return (
     <form className="article-search" onSubmit={submit}>
       <div className="article-title-field">
-        <label htmlFor="article-title">{t('searchArticle')}</label>
         <span className="article-search-row">
           <span className="article-search-input-wrap">
             <input
               id="article-title"
+              aria-label={t('searchArticle')}
               value={value}
               placeholder={t('searchArticle')}
               autoComplete="off"
@@ -62,7 +62,13 @@ export default function ArticleSearch({ value, selectedTitle, disabled, onChange
               </ul>
             )}
           </span>
-          <button className="compare-button" type="submit" disabled={disabled}>{t('search')}</button>
+          <button className="compare-button" type="submit" aria-label={t('search')} disabled={disabled}>
+            <span className="search-label">{t('search')}</span>
+            <svg className="search-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <circle cx="10.5" cy="10.5" r="6.5" />
+              <path d="m15.5 15.5 5 5" />
+            </svg>
+          </button>
         </span>
       </div>
     </form>

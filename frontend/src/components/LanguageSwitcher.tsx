@@ -11,6 +11,7 @@ export default function LanguageSwitcher() {
   return (
     <label className="language-switcher">
       <span className="language-icon" aria-hidden="true">文</span>
+      <span className="language-code" aria-hidden="true">{language.toUpperCase()}</span>
       <span className="visually-hidden">{t('language')}</span>
       <select aria-label={t('language')} value={language} onChange={(event) => setLanguage(event.target.value as Language)}>
         {OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}

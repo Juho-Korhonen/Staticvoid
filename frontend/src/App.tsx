@@ -20,7 +20,7 @@ function isValidRange(from: string, to: string, minDate: string | null, maxDate:
 
 export default function App() {
   const { t, language } = useLanguage();
-  const [title, setTitle] = useState(DEFAULT_SEARCH.title);
+  const [title, setTitle] = useState('');
   const [from, setFrom] = useState(DEFAULT_SEARCH.from);
   const [to, setTo] = useState(DEFAULT_SEARCH.to);
   // The chosen article; the review only starts from the "Start review" button.
@@ -75,7 +75,6 @@ export default function App() {
         />
         <h1>{article}</h1>
         <p className="subtitle">{t('compareSubtitle')}</p>
-
         <DateRangePicker
           from={from}
           to={to}
