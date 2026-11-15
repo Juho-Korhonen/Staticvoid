@@ -70,7 +70,7 @@ export default function App() {
           onChoose={chooseSuggestion}
         />
         <h1>{article}</h1>
-        <p className="subtitle">Finnish Wikipedia · How the article’s framing changed over time</p>
+        <p className="subtitle">Track who edits Finnish Wikipedia and uncover changes that could distort facts, spread propaganda, or manipulate public information.</p>
 
         <DateRangePicker
           from={from}
