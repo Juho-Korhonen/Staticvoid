@@ -13,7 +13,7 @@ export function isIpAddress(user: string): boolean {
 }
 
 export function editorName(user: string): string {
-  return isIpAddress(user) ? 'Anonymous user' : user;
+  return isIpAddress(user) ? '[Anonymous]' : user;
 }
 
 export function isFlagged(change: Change): boolean {
