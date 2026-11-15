@@ -12,13 +12,13 @@ Requires Python 3.10+. Run from the repository root.
 Linux / macOS:
 
 ```sh
-python3 -m venv .venv && .venv/bin/python -m pip install duckdb pytz fastapi uvicorn google-genai httpx pydantic python-dotenv pyarrow pandas
+python3 -m venv .venv && .venv/bin/python -m pip install -r requirements.txt pyarrow pandas
 ```
 
 Windows (PowerShell):
 
 ```powershell
-py -m venv .venv; .venv\Scripts\python -m pip install duckdb pytz fastapi uvicorn google-genai httpx pydantic python-dotenv pyarrow pandas
+py -m venv .venv; .venv\Scripts\python -m pip install -r requirements.txt pyarrow pandas
 ```
 
 This creates a local `.venv/` (git-ignored), so nothing is installed system-wide.
@@ -146,12 +146,15 @@ JSON output is validated with Pydantic.
 
 There is no overall revision or text cutoff. Triage requests contain up to 48 passages
 and 60,000 source characters; full-analysis requests up to 12 passages and 24,000
-characters. Up to twelve requests run concurrently per review.
+characters. Up to twelve requests run concurrently per review, and at most four
+reviews run at once; further ones get 429 until a slot is free.
 Results retain revision order; cancellation or failure stops further requests from
 being scheduled, while in-flight requests may finish. Long blocks are split into 6,000-character segments
 with 200 characters of overlapping context; every segment is screened. The model
 must return an answer for every supplied index before coverage advances.
 Rejected or invalid batches are retried in smaller groups, retaining every passage;
+a single passage is requested again up to twice. The SDK retries rate limits,
+server errors and timeouts with backoff, up to four attempts per request;
 the final result is still withheld if any passage cannot be validated.
 `coverage` reports inspected revisions, passages, original blocks and batches;
 `flaggedChanges` counts flagged passages. Complete results always have `partial: false`.
@@ -209,10 +212,11 @@ all flagged passages with per-edit citations, and expandable benign assessments.
       "removed": ["...whole paragraph lines removed..."],
       "word_changes": [ { "before": "karkoittavat", "after": "karkottavat",
                           "context": "1500 venäläissotilaan kanssa [[CHANGE]] 650 suojeluskuntalaista, " } ],
-      "unified_diff": "@@ -537,5 +537,5 @@\n ..."
+      "unified_diff": "@@ -537,5 +537,5 @@\n ...",
+      "blocks": [ { "kind": "modified", "oldText": "...", "newText": "..." } ] // kind: modified, added or removed
     }
   ],
-  "net_change": { "added": [], "removed": [], "word_changes": [], "unified_diff": "" }, // baseline → final
+  "net_change": { "added": [], "removed": [], "word_changes": [], "unified_diff": "", "blocks": [] }, // baseline → final
   "truncated": false
 }
 ```

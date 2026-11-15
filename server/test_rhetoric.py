@@ -110,6 +110,13 @@ class EvidenceTests(unittest.TestCase):
             with self.assertRaises(AnalysisError):
                 self.analyze()
 
+    def test_invalid_single_passage_is_requested_again(self):
+        self.generate.side_effect = [SimpleNamespace(text="invalid JSON"),
+                                     SimpleNamespace(text=json.dumps(self.response))]
+        result = analyze_changes("Test", self.source)
+        self.assertEqual(result["coverage"]["reviewedChanges"], 1)
+        self.assertEqual(self.generate.call_count, 2)
+
     def test_unchanged_text_needs_no_request_or_key(self):
         with patch.dict(os.environ, {"GEMINI_API_KEY": ""}):
             result = analyze_changes("Test", [])
