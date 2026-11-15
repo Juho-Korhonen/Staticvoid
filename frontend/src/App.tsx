@@ -75,7 +75,6 @@ export default function App() {
         />
         <h1>{article}</h1>
         <p className="subtitle">{t('compareSubtitle')}</p>
-
         <DateRangePicker
           from={from}
           to={to}
