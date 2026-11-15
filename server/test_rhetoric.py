@@ -310,7 +310,8 @@ class TriageTests(unittest.TestCase):
             "category": "rhetorical_change", "rhetoricalCategory": "loaded_language",
             "flags": ["loaded_language"], "severity": "medium", "possibleAgenda": None,
             "neutrality": "less_neutral", "explanation": "Disastrous adds negative judgment.",
-            "evidenceBeforeId": None, "evidenceAfterId": next(iter(c["afterPassages"])),
+            "evidenceBeforeId": next(iter(c["beforePassages"]), None),
+            "evidenceAfterId": next(iter(c["afterPassages"]), None),
             "framingChanges": [],
         } for c in changes]}))
 
@@ -324,6 +325,17 @@ class TriageTests(unittest.TestCase):
         self.assertEqual(result["flaggedChanges"], 0)
         self.assertEqual(result["coverage"]["reviewedChanges"], 5)
         self.assertEqual({c["explanation"] for c in result["changes"]}, {SCREENED_EXPLANATION["en"]})
+
+    def test_removed_text_and_citations_get_full_analysis_even_when_cleared(self):
+        cited = "A policy was introduced.<ref>Source</ref>"
+        result = analyze_changes("Test", [
+            self.source[0],
+            {"kind": "removed", "oldText": cited, "newText": None},
+            {"kind": "modified", "oldText": cited, "newText": "A policy was introduced."},
+        ])
+        full = self.generate.call_args_list[1]
+        self.assertEqual([c["changeIndex"] for c in json.loads(full.kwargs["contents"])["changes"]], [1, 2])
+        self.assertEqual([bool(c["flags"]) for c in result["changes"]], [False, True, True])
 
     def test_only_suspicious_changes_get_full_analysis(self):
         self.suspicious = {1, 3}

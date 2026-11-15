@@ -2,19 +2,15 @@ import type { Change, Severity } from '../types';
 
 const SEVERITY_ORDER: Severity[] = ['high', 'medium', 'low', 'none'];
 
-export function isIpAddress(user: string): boolean {
-  if (!/^(?:\d{1,3}\.){3}\d{1,3}$/.test(user) && !user.includes(':')) return false;
-  try {
-    new URL(`http://${user.includes(':') ? `[${user}]` : user}`);
-    return true;
-  } catch {
-    return false;
-  }
+const ANONYMOUS_PREFIX = 'anon:'; // the server's pseudonym for an IP editor
+
+export function isAnonymous(user: string): boolean {
+  return user.startsWith(ANONYMOUS_PREFIX);
 }
 
-/** IP addresses are shown as `anonymous`, the translated label. */
+/** IP editors are shown as `anonymous`, the translated label. */
 export function editorName(user: string, anonymous: string): string {
-  return isIpAddress(user) ? anonymous : user;
+  return isAnonymous(user) ? anonymous : user;
 }
 
 export function isFlagged(change: Change): boolean {

@@ -208,7 +208,7 @@ all flagged passages with per-edit citations, and expandable benign assessments.
   "revisions": [                       // oldest first, each diffed against the previous version
     {
       "rev_id": 14558414, "parent_id": 14546671, "timestamp": "2015-01-04T17:55:53Z",
-      "title": "Suomen sisällissota", "user": "THautala", "anonymous": false, "minor": true,
+      "title": "Suomen sisällissota", "user": "THautala", "anonymous": false, "minor": true, // an IP editor's user is a pseudonym, "anon:…"
       "comment": "karkoit → karkot", "bytes": 199501, "bytes_delta": -3,
       "is_new_page": false,
       "is_revert": false, "revert_to_rev_id": null, // true when the text equals an earlier version
