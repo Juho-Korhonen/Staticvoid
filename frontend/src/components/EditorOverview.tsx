@@ -17,7 +17,7 @@ export default function EditorOverview({ changes, sources }: { changes: Change[]
       {editors.length === 0 ? <p className="reading-note">No editors with multiple suspicious edits.</p> : (
         <table>
           <caption>These users made multiple suspicious edits</caption>
-          <thead><tr><th scope="col">Editor</th><th scope="col">Suspicious edits</th><th scope="col">Flag</th></tr></thead>
+          <thead><tr><th scope="col">Editor</th><th scope="col">Suspicious edits</th></tr></thead>
           <tbody>
             {editors.map(({ user, edits }) => (
               <Fragment key={user}>
@@ -28,11 +28,10 @@ export default function EditorOverview({ changes, sources }: { changes: Change[]
                     </button>
                   </th>
                   <td>{edits}</td>
-                  <td><strong>⚑ Repeat</strong></td>
                 </tr>
                 {selectedUser === user && (
                   <tr>
-                    <td colSpan={3}>
+                    <td colSpan={2}>
                       {!isIpAddress(user) && (
                         <p className="reading-note">
                           <ExternalLink href={`https://fi.wikipedia.org/wiki/Special:Contributions/${encodeURIComponent(user)}`}>Contributions ↗</ExternalLink>
