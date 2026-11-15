@@ -31,6 +31,7 @@ SEGMENT_OVERLAP = 200
 PASSAGE_WIDTH = 200
 MAX_OUTPUT_TOKENS = 8192
 REQUEST_TIMEOUT_MS = 60_000
+REQUEST_SEED = 1  # a fixed seed makes repeated reviews of the same edits agree; the model ignores temperature
 DEFAULT_TRIAGE_MODEL = "gemini-3.5-flash-lite"
 TRIAGE_BATCH_SIZE = 48
 TRIAGE_BATCH_CHARS = 60_000
@@ -303,7 +304,7 @@ def _generate(client, model: str, contents: str, instruction: str, schema: dict,
             model=model, contents=contents,
             config=types.GenerateContentConfig(
                 system_instruction=instruction, response_mime_type="application/json",
-                response_json_schema=schema, max_output_tokens=max_output_tokens,
+                response_json_schema=schema, max_output_tokens=max_output_tokens, seed=REQUEST_SEED,
             ),
         )
         return parse(response.text)

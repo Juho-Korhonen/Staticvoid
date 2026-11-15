@@ -142,7 +142,9 @@ using schema-constrained IDs and supplied by the server. `sources` links to the 
 revisions and their diff; these URLs are built from dataset IDs, never generated
 by Gemini. These sources support wording comparisons, not historical fact checks.
 Positive tone does not imply neutrality. Explanations are English.
-JSON output is validated with Pydantic.
+JSON output is validated with Pydantic. Requests use a fixed seed, so reviewing the same
+period again gives the same verdicts; a different period can batch the edits differently
+and shift borderline ones.
 
 There is no overall revision or text cutoff. Triage requests contain up to 48 passages
 and 60,000 source characters; full-analysis requests up to 12 passages and 24,000
